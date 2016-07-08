@@ -2,7 +2,7 @@ DHARMA PROJECT
 ========================
 
 ```c
-init_mod()
+init_mod()  // simoneOne the night king
 {
 	array[256];
 }
