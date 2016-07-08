@@ -10,7 +10,16 @@ MODULE_AUTHOR("Benjamin Linux");
 
 static int dharma_open(struct inode *inode, struct file *file)
 {
-   return 0;
+	try_module_get(THIS_MODULE);
+
+	int minor = iminor(filp->f_path.dentry->d_inode);
+	if( minor < DEVICE_MAX_NUMBER){
+		return 0;
+	}
+	else
+	{
+		return -EBUSY;
+	}
 }
 
 static int dharma_release(struct inode *inode, struct file *file)
