@@ -24,6 +24,7 @@ static int dharma_open(struct inode *inode, struct file *file)
 
 static int dharma_release(struct inode *inode, struct file *file)
 {
+   module_put(THIS_MODULE);
    return 0;
 }
 
