@@ -6,7 +6,6 @@
 #define DEVICE_MAX_NUMBER 256
 
 static int major;
-static int minor;
 
 static int dharma_open(struct inode *, struct file *);
 static int dharma_release(struct inode *, struct file *);

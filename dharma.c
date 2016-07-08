@@ -58,5 +58,5 @@ void cleanup_module(void)
 {
 	unregister_chrdev(major, DEVICE_NAME);
 
-	printk(KERN_INFO "Broadcast device unregistered, it was assigned major number %d\n", Major);
+	printk(KERN_INFO "Broadcast device unregistered, it was assigned major number %d\n", major);
 }
