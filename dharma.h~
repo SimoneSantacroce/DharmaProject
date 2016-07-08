@@ -7,7 +7,7 @@
 
 #define MAJOR 100
 
-char* minorArray[256];
+char** minorArray;
 
 static int major;
 
