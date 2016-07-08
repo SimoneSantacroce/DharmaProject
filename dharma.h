@@ -35,7 +35,7 @@ static long dharma_ioctl(struct file *f, unsigned int cmd, unsigned long arg);
 static struct file_operations fops = {
 	.read			= dharma_read,
 	.write			= dharma_write,
-	.open			=  dharma_open,
+	.open			= dharma_open,
 	.release		= dharma_release,
-	.unlocked_ioctl = mailbox_ioctl
+	.unlocked_ioctl = dharma_ioctl
 };
