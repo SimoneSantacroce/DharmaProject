@@ -1,6 +1,25 @@
 /*
- * The darma header
- */
+* The darma header
+*/
+
+#define EXPORT_SYMTAB
+
+#include <linux/init.h>
+#include <linux/module.h>
+#include <linux/kernel.h>
+#include <linux/slab.h>
+#include <linux/fs.h>
+#include <linux/errno.h>
+#include <linux/types.h>
+#include <linux/proc_fs.h>
+#include <linux/fcntl.h>
+#include <linux/spinlock.h>
+#include <linux/wait.h>
+#include <linux/sched.h>
+#include <asm/uaccess.h>
+#include <asm/atomic.h>
+
+#include "dharma_ioctl.h"
 
 #define DEVICE_NAME "dharma"
 #define DEVICE_MAX_NUMBER 256
