@@ -1,6 +1,25 @@
 /*
- * The darma header
- */
+* The darma header
+*/
+
+#define EXPORT_SYMTAB
+
+#include <linux/init.h>
+#include <linux/module.h>
+#include <linux/kernel.h>
+#include <linux/slab.h>
+#include <linux/fs.h>
+#include <linux/errno.h>
+#include <linux/types.h>
+#include <linux/proc_fs.h>
+#include <linux/fcntl.h>
+#include <linux/spinlock.h>
+#include <linux/wait.h>
+#include <linux/sched.h>
+#include <asm/uaccess.h>
+#include <asm/atomic.h>
+
+#include "dharma_ioctl.h"
 
 #define DEVICE_NAME "dharma"
 #define DEVICE_MAX_NUMBER 256
@@ -20,7 +39,7 @@ static long dharma_ioctl(struct file *f, unsigned int cmd, unsigned long arg);
 static struct file_operations fops = {
 	.read			= dharma_read,
 	.write			= dharma_write,
-	.open			=  dharma_open,
+	.open			= dharma_open,
 	.release		= dharma_release,
-	.unlocked_ioctl = mailbox_ioctl
+	.unlocked_ioctl = dharma_ioctl
 };
