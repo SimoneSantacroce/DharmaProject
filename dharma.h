@@ -41,5 +41,5 @@ static struct file_operations fops = {
 	.write			= dharma_write,
 	.open			= dharma_open,
 	.release		= dharma_release,
-	.unlocked_ioctl = dharma_ioctl
+	.unlocked_ioctl	= dharma_ioctl
 };
