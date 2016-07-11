@@ -23,13 +23,16 @@
 
 #define DEVICE_NAME "dharma"
 #define DEVICE_MAX_NUMBER 256
+#define BUFFER_SIZE 20
 #define PACKET_SIZE 1
-#define MAJOR 100
 
 char* minorArray[256];
 
 static int major;
 static spinlock_t buffer_lock[DEVICE_MAX_NUMBER];
+
+int readPos;
+int writePos;
 
 static int dharma_open(struct inode *, struct file *);
 static int dharma_release(struct inode *, struct file *);
