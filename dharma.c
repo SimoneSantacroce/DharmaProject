@@ -15,6 +15,7 @@ static int dharma_open(struct inode *inode, struct file *file)
 	// return the minor number
 	int minor = iminor(filp->f_path.dentry->d_inode);
 	if (minor < DEVICE_MAX_NUMBER) {
+		minorArray[minor]=kmalloc(BUFFER_SIZE);
 		return 0;
 	}
 	else {
@@ -43,20 +44,28 @@ static ssize_t dharma_read(struct file *filp, char *out_buffer, size_t size, lof
 }
 
 static ssize_t dharma_read_packet(struct file *filp, char *out_buffer, size_t size, loff_t *offset) {
+	int minor=iminor(filp->f_path.dentry->d_inode);
 	// acquire spinlock
+	spin_lock(&(buffer_lock[minor]));
 	int ret_val = 0;
+	DECLARE_WAIT_QUEUE_HEAD(the_queue);//here we use a private queue since wakeup is selective via wake up process
+
 	// N.B. buffer check should be atomic too
 	if (buffer_is_empty) {
 		// release spinlock (look at STEEEVE)
+		spin_unlock(&(buffer_lock[minor]));
 		if (!BLOCKING) {
 			return -1;
 		} else {
 			// insert into read wait queue
-			
+			if(wait_event_interruptible(the_queue, !buffer_is_empty))
+				return -1;
+			//acquire spinlock
+			spin_lock(&(buffer_lock[minor]));
 		}
-	} else {
-
-	}
+	} 
+	copy_to_user(out_buffer, minorArray[minor], PACKET_SIZE);
+	
 }
 
 static ssize_t dharma_read_stream(struct file *filp, char *out_buffer, size_t size, loff_t *offset) {
