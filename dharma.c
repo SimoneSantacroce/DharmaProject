@@ -77,25 +77,37 @@ static ssize_t dharma_read_packet(struct file *filp, char *out_buffer, size_t si
 	//return values
 	int ret=0;
 	int res=0;
+	
 	//residual
 	int residual=PACKET_SIZE-readPos_mod%PACKET_SIZE;
 	
 	//read the residual, if there is, but check if size is bigger than the residual
 	if(residual!=PACKET_SIZE && size>residual){			
 		res= copy_to_user(out_buffer, (char *)(&(minorArray[minor][readPos_mod])), residual);
+		//update readPos
 		readPos+=residual;
 		readPos_mod=readPos%BUFFER_SIZE;
 	}
-	else if (size<residual){
+	else if (size<=residual){
+		/*I want to read a fraction of packet smaller than the already existent residual.
+		 But since this is read packet I cannot leave residuals, so readPos will jump to the next packet*/ 
 		ret=copy_to_user(out_buffer, (char *)(&(minorArray[minor][readPos_mod])), size);
 		//update readPos as if I read the whole packet
 		readPos+=residual;
 		readPos_mod=readPos%BUFFER_SIZE;
+		return ret;
 	}
 	
 	//Now I have read residual bytes. Note: residual can be also 0.
 	
-	//if I want more bytes than what there is up to the end of the buffer
+	//check that I want less bytes than how many there are in the buffer
+	if(size-residual> writePos-readPos){
+		/*CHOICE: can be discussed. I read all bytes that are in the buffer, even if they are less
+		than how many I asked*/
+		size=residual+writePos-readPos;
+	}
+	
+	//if the remaining bytes to read are more than what there is up to the end of the buffer
 	if(size-residual>BUFFER_SIZE-readPos_mod){
 		//gestione buffer circolare
 	}
@@ -105,10 +117,12 @@ static ssize_t dharma_read_packet(struct file *filp, char *out_buffer, size_t si
 		read the residual*/
 		ret=copy_to_user((char *)(&(out_buffer[residual])), (char *)(&(minorArray[minor][readPos_mod])), size-residual);
 		
-		//update reading position
+		/*update reading position. +1 is here because I discard the residual of bytes of the packet I
+		did not read*/
 		readPos+=((size/PACKET_SIZE)+1)*PACKET_SIZE;
 		readPos_mod=readPos%BUFFER_SIZE;
 		
+		//release spinlock
 		spin_unlock(&(buffer_lock[minor]));
 	}
 	return ret;
