@@ -76,7 +76,6 @@ static ssize_t dharma_read_packet(struct file *filp, char *out_buffer, size_t si
 	}
 	//return value
 	int res=0;
-	
 	//residual. if there is no real residual, it is equal to PACKET_SIZE.
 	int residual=PACKET_SIZE-readPos_mod%PACKET_SIZE;
 	
