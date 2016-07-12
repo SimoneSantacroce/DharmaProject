@@ -24,7 +24,7 @@
 #define DEVICE_NAME "dharma"
 #define DEVICE_MAX_NUMBER 256
 #define BUFFER_SIZE 20
-#define PACKET_SIZE 1
+#define PACKET_SIZE 5
 
 char* minorArray[256];
 

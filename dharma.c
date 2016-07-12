@@ -74,17 +74,39 @@ static ssize_t dharma_read_packet(struct file *filp, char *out_buffer, size_t si
 			spin_lock(&(buffer_lock[minor]));
 		}
 	}
-	int ret;
-	if(size>BUFFER_SIZE-readPos_mod){
+	//return values
+	int ret=0;
+	int res=0;
+	//residual
+	int residual=PACKET_SIZE-readPos_mod%PACKET_SIZE;
+	
+	//read the residual, if there is, but check if size is bigger than the residual
+	if(residual!=PACKET_SIZE && size>residual){			
+		res= copy_to_user(out_buffer, (char *)(&(minorArray[minor][readPos_mod])), residual);
+		readPos+=residual;
+		readPos_mod=readPos%BUFFER_SIZE;
+	}
+	else if (size<residual){
+		ret=copy_to_user(out_buffer, (char *)(&(minorArray[minor][readPos_mod])), size);
+		//update readPos as if I read the whole packet
+		readPos+=residual;
+		readPos_mod=readPos%BUFFER_SIZE;
+	}
+	
+	//Now I have read residual bytes. Note: residual can be also 0.
+	
+	//if I want more bytes than what there is up to the end of the buffer
+	if(size-residual>BUFFER_SIZE-readPos_mod){
 		//gestione buffer circolare
 	}
 	else{
 		/*read size bytes; if size is not multiple of a packet, discard the rest of the packet and
-		update readPos as if an entire packet was read*/
-		ret=copy_to_user(out_buffer, (char *)(&(minorArray[minor][readPos_mod])), size);
+		update readPos as if an entire packet was read. Out buffer must be incremented because I
+		read the residual*/
+		ret=copy_to_user((char *)(&(out_buffer[residual])), (char *)(&(minorArray[minor][readPos_mod])), size-residual);
 		
 		//update reading position
-		readPos+=(size%PACKET_SIZE)*PACKET_SIZE;
+		readPos+=((size/PACKET_SIZE)+1)*PACKET_SIZE;
 		readPos_mod=readPos%BUFFER_SIZE;
 		
 		spin_unlock(&(buffer_lock[minor]));
