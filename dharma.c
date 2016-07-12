@@ -50,13 +50,14 @@ static ssize_t dharma_write(struct file *filp,
 
 static ssize_t dharma_read(struct file *filp, char *out_buffer, size_t size, loff_t *offset) {
 	// should we check if file is open/valid?
+	return 0;
 }
 
 static ssize_t dharma_read_packet(struct file *filp, char *out_buffer, size_t size, loff_t *offset) {
 	int minor=iminor(filp->f_path.dentry->d_inode);
 	// acquire spinlock
 	spin_lock(&(buffer_lock[minor]));
-	int ret_val = 0;
+	int ret_val = 0;   // it is not used...
 	DECLARE_WAIT_QUEUE_HEAD(the_queue);
 
 	// N.B. buffer check should be atomic too.
@@ -150,8 +151,55 @@ static ssize_t dharma_read_packet(struct file *filp, char *out_buffer, size_t si
 }
 
 static ssize_t dharma_read_stream(struct file *filp, char *out_buffer, size_t size, loff_t *offset) {
-	//solo per compilare
-	return 0;
+	int minor=iminor(filp->f_path.dentry->d_inode);
+	// acquire spinlock
+	spin_lock(&(buffer_lock[minor]));
+	DECLARE_WAIT_QUEUE_HEAD(the_queue);
+
+	if(buffer_is_empty){
+		// release spinlock
+		spin_unlock(&(buffer_lock[minor]));
+		//if op is non blocking
+		if (filp->f_flags & O_NONBLOCK) {
+			// different choice with respect to the read_packet case, because:
+			// return -1 represents an error, instead I think that in this case
+			// we have to return "no bytes read" = "0 bytes read"
+			return 0;
+		} else {
+			// insert into wait queue
+			if(wait_event_interruptible(the_queue, !buffer_is_empty))
+				return -1;
+			//acquire spinlock
+			spin_lock(&(buffer_lock[minor]));
+		}
+	}
+	// ...like in the read_packet case
+
+	//return value
+	int res=0;
+
+	// how many bytes we can read
+	int readableBytes = writePos_mod - readPos_mod;
+	// we compare the readable bytes (an int value) with the number of bytes the user
+	// wants to read (a size_t value)
+	if(readableBytes>=0 && (size_t)readableBytes < size){
+		// if the user wants to read a number of bytes greater than the possible amount
+		// then we read the possible amount and set the new read pointer
+		res= copy_to_user(out_buffer, (char *)(&(minorArray[minor][readPos_mod])), readableBytes);
+		readPos+=readableBytes;
+	}
+	else{
+		// the user wants to read an amount of bytes which does not exceed the write pointer
+
+		res= copy_to_user(out_buffer, (char *)(&(minorArray[minor][readPos_mod])), size);
+		readPos+=size;
+	}
+
+	// we update the read module-pointer 
+	// in this case the write pointer is the same as before
+	readPos_mod=readPos%BUFFER_SIZE;
+
+	return res;
 }
 
 static long dharma_ioctl(struct file *filp,
