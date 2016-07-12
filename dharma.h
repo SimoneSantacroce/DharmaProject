@@ -31,7 +31,11 @@ char* minorArray[256];
 static int major;
 static spinlock_t buffer_lock[DEVICE_MAX_NUMBER];
 
+/*Pos_mod is the position mod BUFFER_SIZE, Pos is without mod, used to check that 
+ read is always less than write */
+int readPos_mod;
 int readPos;
+int writePos_mod;
 int writePos;
 
 static int dharma_open(struct inode *, struct file *);

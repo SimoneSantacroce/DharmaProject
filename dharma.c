@@ -7,7 +7,7 @@
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Benjamin Linux");
 
-//solo per compilare 
+//solo per compilare. TODO:buffer_is_empty function
 int buffer_is_empty=0;
 
 
@@ -21,6 +21,10 @@ static int dharma_open(struct inode *inode, struct file *file)
 	int minor = iminor(file->f_path.dentry->d_inode);
 	if (minor < DEVICE_MAX_NUMBER) {
 		minorArray[minor]=kmalloc(BUFFER_SIZE, GFP_ATOMIC);
+		readPos=0;
+		readPos_mod=0;
+		writePos=0;
+		writePos_mod=0;
 		return 0;
 	}
 	else {
@@ -55,10 +59,11 @@ static ssize_t dharma_read_packet(struct file *filp, char *out_buffer, size_t si
 	int ret_val = 0;
 	DECLARE_WAIT_QUEUE_HEAD(the_queue);
 
-	// N.B. buffer check should be atomic too
+	// N.B. buffer check should be atomic too. TODO:buffer_is_empty function
 	if (buffer_is_empty) {
 		// release spinlock
 		spin_unlock(&(buffer_lock[minor]));
+		//if op is non blocking
 		if (filp->f_flags & O_NONBLOCK) {
 			return -1;
 		} else {
@@ -69,11 +74,21 @@ static ssize_t dharma_read_packet(struct file *filp, char *out_buffer, size_t si
 			spin_lock(&(buffer_lock[minor]));
 		}
 	}
-	/*read size bytes; if size is not multiple of a packet, discard the rest of the packet and
-	update readPos as if an entire packet was read*/
-	int ret=copy_to_user(out_buffer, (char *)(&(minorArray[minor][readPos])), size);
-	readPos+=(size%PACKET_SIZE)*PACKET_SIZE;
-	spin_unlock(&(buffer_lock[minor]));
+	int ret;
+	if(size>BUFFER_SIZE-readPos_mod){
+		//gestione buffer circolare
+	}
+	else{
+		/*read size bytes; if size is not multiple of a packet, discard the rest of the packet and
+		update readPos as if an entire packet was read*/
+		ret=copy_to_user(out_buffer, (char *)(&(minorArray[minor][readPos_mod])), size);
+		
+		//update reading position
+		readPos+=(size%PACKET_SIZE)*PACKET_SIZE;
+		readPos_mod=readPos%BUFFER_SIZE;
+		
+		spin_unlock(&(buffer_lock[minor]));
+	}
 	return ret;
 }
 
