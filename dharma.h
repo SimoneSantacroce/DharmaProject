@@ -23,12 +23,20 @@
 
 #define DEVICE_NAME "dharma"
 #define DEVICE_MAX_NUMBER 256
-
-#define MAJOR 100
+#define BUFFER_SIZE 20
+#define PACKET_SIZE 1
 
 char* minorArray[256];
 
 static int major;
+static spinlock_t buffer_lock[DEVICE_MAX_NUMBER];
+
+/*Pos_mod is the position mod BUFFER_SIZE, Pos is without mod, used to check that 
+ read is always less than write */
+int readPos_mod;
+int readPos;
+int writePos_mod;
+int writePos;
 
 static int dharma_open(struct inode *, struct file *);
 static int dharma_release(struct inode *, struct file *);

@@ -1,9 +1,14 @@
 /**
  * Dharma main module
  */
+#include "dharma.h"
+#include "dharma_ioctl.h"
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Benjamin Linux");
+
+//solo per compilare. TODO:buffer_is_empty function
+int buffer_is_empty=0;
 
 
 /* The operations */
@@ -13,8 +18,13 @@ static int dharma_open(struct inode *inode, struct file *file)
 	try_module_get(THIS_MODULE);
 
 	// return the minor number
-	int minor = iminor(filp->f_path.dentry->d_inode);
+	int minor = iminor(file->f_path.dentry->d_inode);
 	if (minor < DEVICE_MAX_NUMBER) {
+		minorArray[minor]=kmalloc(BUFFER_SIZE, GFP_ATOMIC);
+		readPos=0;
+		readPos_mod=0;
+		writePos=0;
+		writePos_mod=0;
 		return 0;
 	}
 	else {
@@ -43,24 +53,48 @@ static ssize_t dharma_read(struct file *filp, char *out_buffer, size_t size, lof
 }
 
 static ssize_t dharma_read_packet(struct file *filp, char *out_buffer, size_t size, loff_t *offset) {
+	int minor=iminor(filp->f_path.dentry->d_inode);
 	// acquire spinlock
+	spin_lock(&(buffer_lock[minor]));
 	int ret_val = 0;
-	// N.B. buffer check should be atomic too
+	DECLARE_WAIT_QUEUE_HEAD(the_queue);
+
+	// N.B. buffer check should be atomic too. TODO:buffer_is_empty function
 	if (buffer_is_empty) {
-		// release spinlock (look at STEEEVE)
-		if (!BLOCKING) {
+		// release spinlock
+		spin_unlock(&(buffer_lock[minor]));
+		//if op is non blocking
+		if (filp->f_flags & O_NONBLOCK) {
 			return -1;
 		} else {
-			// insert into read wait queue
-			
+			// insert into wait queue
+			if(wait_event_interruptible(the_queue, !buffer_is_empty))
+				return -1;
+			//acquire spinlock
+			spin_lock(&(buffer_lock[minor]));
 		}
-	} else {
-
 	}
+	int ret;
+	if(size>BUFFER_SIZE-readPos_mod){
+		//gestione buffer circolare
+	}
+	else{
+		/*read size bytes; if size is not multiple of a packet, discard the rest of the packet and
+		update readPos as if an entire packet was read*/
+		ret=copy_to_user(out_buffer, (char *)(&(minorArray[minor][readPos_mod])), size);
+		
+		//update reading position
+		readPos+=(size%PACKET_SIZE)*PACKET_SIZE;
+		readPos_mod=readPos%BUFFER_SIZE;
+		
+		spin_unlock(&(buffer_lock[minor]));
+	}
+	return ret;
 }
 
 static ssize_t dharma_read_stream(struct file *filp, char *out_buffer, size_t size, loff_t *offset) {
-	
+	//solo per compilare
+	return 0;
 }
 
 static long dharma_ioctl(struct file *filp,
@@ -72,9 +106,11 @@ static long dharma_ioctl(struct file *filp,
 
 	switch (cmd)
 	{
-		case DHARMA_GET_MAX_BUFFER_SIZE:
+		case DHARMA_SET_BLOCKING:
 		break;
 	}
+	//solo per compilare
+	return 0;
 }
 
 int init_module(void){
