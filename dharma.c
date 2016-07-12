@@ -74,36 +74,55 @@ static ssize_t dharma_read_packet(struct file *filp, char *out_buffer, size_t si
 			spin_lock(&(buffer_lock[minor]));
 		}
 	}
-	//return values
-	int ret=0;
+	//return value
 	int res=0;
-	
-	//residual
+	//residual. if there is no real residual, it is equal to PACKET_SIZE.
 	int residual=PACKET_SIZE-readPos_mod%PACKET_SIZE;
 	
+	//check there are residual bytes available: writePos_mod-readPos_mod are the unread bytes
+	if(residual> writePos_mod-readPos_mod){
+		/*CHOICE: can be discussed. If there are less than residual bytes, I read all bytes available, 
+		 even if they are less than a packet*/
+		residual=writePos_mod-readPos_mod;
+	}
+	res= copy_to_user(out_buffer, (char *)(&(minorArray[minor][readPos_mod])), residual);
+	//update readPos
+	readPos+=PACKET_SIZE;
+	/*if I read less than a packet, it means writePos is before the end of the frame,
+	 so I update writePos also to make it coincide with the new readPos, that means the buffer is now empty*/
+	if(residual==writePos_mod-readPos_mod){
+		writePos=readPos;
+		writePos_mod=writePos%BUFFER_SIZE;
+	}
+	readPos_mod=readPos%BUFFER_SIZE;
+	spin_unlock(&(buffer_lock[minor]));
+	return res;
+	
+	
+	/* DA BUTTARE SE LEGGIAMO SOLO UN PACCHETTO AL PIÙ	
+	
 	//read the residual, if there is, but check if size is bigger than the residual
-	if(residual!=PACKET_SIZE && size>residual){			
+	if(residual!=PACKET_SIZE && size>residual){		
 		res= copy_to_user(out_buffer, (char *)(&(minorArray[minor][readPos_mod])), residual);
 		//update readPos
 		readPos+=residual;
 		readPos_mod=readPos%BUFFER_SIZE;
+		return res;
 	}
 	else if (size<=residual){
 		/*I want to read a fraction of packet smaller than the already existent residual.
-		 But since this is read packet I cannot leave residuals, so readPos will jump to the next packet*/ 
+		 But since this is read packet I cannot leave residuals, so readPos will jump to the next packet 
 		ret=copy_to_user(out_buffer, (char *)(&(minorArray[minor][readPos_mod])), size);
 		//update readPos as if I read the whole packet
 		readPos+=residual;
 		readPos_mod=readPos%BUFFER_SIZE;
 		return ret;
 	}
-	
+	 
 	//Now I have read residual bytes. Note: residual can be also 0.
 	
 	//check that I want less bytes than how many there are in the buffer
 	if(size-residual> writePos-readPos){
-		/*CHOICE: can be discussed. I read all bytes that are in the buffer, even if they are less
-		than how many I asked*/
 		size=residual+writePos-readPos;
 	}
 	
@@ -114,18 +133,19 @@ static ssize_t dharma_read_packet(struct file *filp, char *out_buffer, size_t si
 	else{
 		/*read size bytes; if size is not multiple of a packet, discard the rest of the packet and
 		update readPos as if an entire packet was read. Out buffer must be incremented because I
-		read the residual*/
+		read the residual
 		ret=copy_to_user((char *)(&(out_buffer[residual])), (char *)(&(minorArray[minor][readPos_mod])), size-residual);
 		
 		/*update reading position. +1 is here because I discard the residual of bytes of the packet I
-		did not read*/
+		did not read
 		readPos+=((size/PACKET_SIZE)+1)*PACKET_SIZE;
 		readPos_mod=readPos%BUFFER_SIZE;
 		
 		//release spinlock
 		spin_unlock(&(buffer_lock[minor]));
 	}
-	return ret;
+	return ret;*/
+	
 }
 
 static ssize_t dharma_read_stream(struct file *filp, char *out_buffer, size_t size, loff_t *offset) {
