@@ -7,8 +7,8 @@
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Benjamin Linux");
 
-//solo per compilare. TODO:buffer_is_empty function
-int buffer_is_empty=0;
+//solo per compilare.
+#define buffer_is_empty (readPos_mod==writePos_mod)
 
 
 /* The operations */
@@ -59,7 +59,7 @@ static ssize_t dharma_read_packet(struct file *filp, char *out_buffer, size_t si
 	int ret_val = 0;
 	DECLARE_WAIT_QUEUE_HEAD(the_queue);
 
-	// N.B. buffer check should be atomic too. TODO:buffer_is_empty function
+	// N.B. buffer check should be atomic too.
 	if (buffer_is_empty) {
 		// release spinlock
 		spin_unlock(&(buffer_lock[minor]));
