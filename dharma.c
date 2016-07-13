@@ -179,21 +179,47 @@ static ssize_t dharma_read_stream(struct file *filp, char *out_buffer, size_t si
 	int res=0;
 
 	// how many bytes we can read
-	int readableBytes = writePos_mod - readPos_mod;
+	int readableBytes = writePos - readPos;
+
+	/*
+		In the previous version the operation was: int readableBytes = writePos_mod - readPos_mod
+		but in this way, if the write pointer precedes the read pointer (legal case if the writePos > readPos)
+		we will obtain a negative value of readableBytes!
+	*/
+
+	// amount of bytes to read (updated during the control phase)
+	int bytesToRead = 0;
+
 	// we compare the readable bytes (an int value) with the number of bytes the user
 	// wants to read (a size_t value)
 	if(readableBytes>=0 && (size_t)readableBytes < size){
 		// if the user wants to read a number of bytes greater than the possible amount
 		// then we read the possible amount and set the new read pointer
-		res= copy_to_user(out_buffer, (char *)(&(minorArray[minor][readPos_mod])), readableBytes);
-		readPos+=readableBytes;
+		bytesToRead = readableBytes;
 	}
 	else{
 		// the user wants to read an amount of bytes which does not exceed the write pointer
-
-		res= copy_to_user(out_buffer, (char *)(&(minorArray[minor][readPos_mod])), size);
-		readPos+=size;
+		bytesToRead = size;
 	}
+
+	if( readPos_mod + readableBytes < BUFFER_SIZE ){
+		// before reading, we control whether the amount to be read 
+		// is contained in the interval between readPos_mod and the end of the buffer
+		res= copy_to_user(out_buffer, (char *)(&(minorArray[minor][readPos_mod])), bytesToRead);
+	}
+	else{
+		// in this case, we need to read the last bytes of the buffer and go back at the begin of the buffer
+		// in order to complete the read
+
+		// leggiamo gli ultimi bytes disponibili dal buffer
+		// plus the leftover (which consists of the initial part of the buffer)
+		res= copy_to_user(out_buffer, (char *)(&(minorArray[minor][readPos_mod])), BUFFER_SIZE - readPos_mod );
+
+		//we compute the number of bytes to read at the begin of the buffer
+		int leftover = bytesToRead - ( BUFFER_SIZE - readPos_mod );
+		res= copy_to_user(out_buffer, (char *)(&(minorArray[minor][0])), leftover );
+	}
+	readPos += bytesToRead;
 
 	// we update the read module-pointer 
 	// in this case the write pointer is the same as before
