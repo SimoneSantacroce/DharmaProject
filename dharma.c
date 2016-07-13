@@ -69,7 +69,7 @@ static ssize_t dharma_read_packet(struct file *filp, char *out_buffer, size_t si
 		} else {
 			// insert into wait queue
 			if(wait_event_interruptible(the_queue, !buffer_is_empty))
-				return -1;
+				return -1; // Gets here only if woke up by a signal (i.e. returns -ERESTARTSYS)
 			//acquire spinlock
 			spin_lock(&(buffer_lock[minor]));
 		}
