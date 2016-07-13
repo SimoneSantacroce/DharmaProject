@@ -63,13 +63,17 @@ static ssize_t dharma_read_packet(struct file *filp, char *out_buffer, size_t si
 	if (buffer_is_empty) {
 		// release spinlock
 		spin_unlock(&(buffer_lock[minor]));
-		//if op is non blocking
+		//if op is non blocking. EGAIN:resource is temporarily unavailable
 		if (filp->f_flags & O_NONBLOCK) {
-			return -1;
+			return -EAGAIN;
 		} else {
-			// insert into wait queue
+			/* insert into wait queue. wait_event_interruptible returns ERESTARTSYS 
+			 * if it is interrupted by a signal. The system call can be re-executed if there is some 
+			 * interruption*/
+			 /*questo è quello che ho capito da qui:
+			  * http://stackoverflow.com/questions/9576604/what-does-erestartsys-used-while-writing-linux-driver */
 			if(wait_event_interruptible(the_queue, !buffer_is_empty))
-				return -1;
+				return -ERESTARTSYS;
 			//acquire spinlock
 			spin_lock(&(buffer_lock[minor]));
 		}
