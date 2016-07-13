@@ -15,10 +15,11 @@ MODULE_AUTHOR("Benjamin Linux");
 
 static int dharma_open(struct inode *inode, struct file *file)
 {
+	int minor;
 	try_module_get(THIS_MODULE);
 
 	// return the minor number
-	int minor = iminor(file->f_path.dentry->d_inode);
+	minor = iminor(file->f_path.dentry->d_inode);
 	if (minor < DEVICE_MAX_NUMBER) {
 		minorArray[minor]=kmalloc(BUFFER_SIZE, GFP_ATOMIC);
 		readPos=0;
@@ -50,14 +51,21 @@ static ssize_t dharma_write(struct file *filp,
 
 static ssize_t dharma_read(struct file *filp, char *out_buffer, size_t size, loff_t *offset) {
 	// should we check if file is open/valid?
+
+	//solo per compilare
+	return 0;
 }
 
 static ssize_t dharma_read_packet(struct file *filp, char *out_buffer, size_t size, loff_t *offset) {
 	int minor=iminor(filp->f_path.dentry->d_inode);
+	int res;
+	int residual;
+    DECLARE_WAIT_QUEUE_HEAD(the_queue);
+
 	// acquire spinlock
 	spin_lock(&(buffer_lock[minor]));
-	int ret_val = 0;
-	DECLARE_WAIT_QUEUE_HEAD(the_queue);
+
+    res = 0;
 
 	// N.B. buffer check should be atomic too.
 	if (buffer_is_empty) {
@@ -78,10 +86,8 @@ static ssize_t dharma_read_packet(struct file *filp, char *out_buffer, size_t si
 			spin_lock(&(buffer_lock[minor]));
 		}
 	}
-	//return value
-	int res=0;
 	//residual. if there is no real residual, it is equal to PACKET_SIZE.
-	int residual=PACKET_SIZE-readPos_mod%PACKET_SIZE;
+	residual=PACKET_SIZE-readPos_mod%PACKET_SIZE;
 	
 	//check there are residual bytes available: writePos_mod-readPos_mod are the unread bytes
 	if(residual> writePos_mod-readPos_mod){
