@@ -26,20 +26,6 @@
 #define BUFFER_SIZE 20
 #define PACKET_SIZE 5
 
-// Fabrizio: Magic Number Removed
-char* minorArray[DEVICE_MAX_NUMBER];
-
-static int major;
-static spinlock_t buffer_lock[DEVICE_MAX_NUMBER];
-
-/*Pos_mod is the position mod BUFFER_SIZE, Pos is without mod, used to check that 
- read is always less than write */
-/* Fabrizio: Ci servono davvero 4 indici? readPos_mod e writePos_mod non possono
- * essere trasformate in variabili locali ai metodi read e write? */
-int readPos_mod;
-int readPos;
-int writePos_mod;
-int writePos;
 
 static int dharma_open(struct inode *, struct file *);
 static int dharma_release(struct inode *, struct file *);
