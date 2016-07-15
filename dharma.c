@@ -10,7 +10,6 @@ MODULE_AUTHOR("Benjamin Linux");
 //solo per compilare.
 #define buffer_is_empty (readPos_mod==writePos_mod)
 
-
 /* The operations */
 
 static int dharma_open(struct inode *inode, struct file *file)
@@ -86,13 +85,10 @@ static ssize_t dharma_read_packet(struct file *filp, char *out_buffer, size_t si
 			spin_lock(&(buffer_lock[minor]));
 		}
 	}
-
-	//return value
-	int res=0;
 	
 	/*residual. if there is no real residual, it is equal to PACKET_SIZE.
 	 * residual = how many bytes we have to read effectively */
-	int residual=PACKET_SIZE-readPos_mod%PACKET_SIZE;
+	residual=PACKET_SIZE-readPos_mod%PACKET_SIZE;
 	//bytes that are missing to get to the end of the packet.Used later.
 	int to_end=residual;
 	
