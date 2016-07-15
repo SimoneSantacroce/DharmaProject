@@ -93,13 +93,14 @@ static ssize_t dharma_read_packet(struct file *filp, char *out_buffer, size_t si
 	}
 	res= copy_to_user(out_buffer, (char *)(&(minorArray[minor][readPos_mod])), residual);
 	//update readPos
-	readPos+=PACKET_SIZE;
+	readPos+=residual;
 	/*if I read less than a packet, it means writePos is before the end of the frame,
 	 so I update writePos also to make it coincide with the new readPos, that means the buffer is now empty*/
 	if(residual==writePos_mod-readPos_mod){
 		writePos=readPos;
 		writePos_mod=writePos%BUFFER_SIZE;
 	}
+	
 	readPos_mod=readPos%BUFFER_SIZE;
 	spin_unlock(&(buffer_lock[minor]));
 	return residual-res;
