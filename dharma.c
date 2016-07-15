@@ -86,9 +86,16 @@ static ssize_t dharma_read_packet(struct file *filp, char *out_buffer, size_t si
 			spin_lock(&(buffer_lock[minor]));
 		}
 	}
-	//residual. if there is no real residual, it is equal to PACKET_SIZE.
-	//residual = how many bytes we have to read effectively
-	residual=PACKET_SIZE-readPos_mod%PACKET_SIZE;
+
+	//return value
+	int res=0;
+	
+	/*residual. if there is no real residual, it is equal to PACKET_SIZE.
+	 * residual = how many bytes we have to read effectively */
+	int residual=PACKET_SIZE-readPos_mod%PACKET_SIZE;
+	//bytes that are missing to get to the end of the packet.Used later.
+	int to_end=residual;
+	
 
 	//check there are residual bytes available: writePos_mod-readPos_mod are the unread bytes
 	if(residual> writePos_mod-readPos_mod){
@@ -99,9 +106,14 @@ static ssize_t dharma_read_packet(struct file *filp, char *out_buffer, size_t si
 	res= copy_to_user(out_buffer, (char *)(&(minorArray[minor][readPos_mod])), residual);
 	//update readPos
 	readPos+=residual;
-	/*if I read less than a packet, it means writePos is before the end of the frame,
-	 so I update writePos also to make it coincide with the new readPos, that means the buffer is now empty*/
+	/*if I read less than a packet(or its residual), it means that readPos (line before) was updated 
+	 * in a way it does not coincide with the end of the packet, so I must
+	 * add to readPos the quantity it needs to arrive at the end of the packet, and since writePos 
+	 * too is not placed at the end of the frame, I update it to make it coincide with the new readPos, 
+	 * that means the buffer is now empty*/
 	if(residual==writePos_mod-readPos_mod){
+		//now I am sure readPos is at the end of the packet
+		readPos+=(to_end-residual);
 		writePos=readPos;
 		writePos_mod=writePos%BUFFER_SIZE;
 	}
