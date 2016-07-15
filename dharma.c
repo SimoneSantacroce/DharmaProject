@@ -7,8 +7,25 @@
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Benjamin Linux");
 
-//solo per compilare.
-#define buffer_is_empty (readPos_mod==writePos_mod)
+char* minorArray[DEVICE_MAX_NUMBER];
+
+int major;
+spinlock_t buffer_lock[DEVICE_MAX_NUMBER];
+
+/*Pos_mod is the position mod BUFFER_SIZE, Pos is without mod, used to check that 
+ read is always less than write */
+int readPos_mod[DEVICE_MAX_NUMBER];
+int readPos[DEVICE_MAX_NUMBER];
+int writePos_mod[DEVICE_MAX_NUMBER];
+int writePos[DEVICE_MAX_NUMBER];
+
+DECLARE_WAIT_QUEUE_HEAD(read_queue);
+DECLARE_WAIT_QUEUE_HEAD(write_queue);
+
+inline int is_empty(int minor) {
+	return readPos[minor] == writePos[minor];
+}
+
 
 /* The operations */
 
@@ -19,12 +36,12 @@ static int dharma_open(struct inode *inode, struct file *file)
 
 	// return the minor number
 	minor = iminor(file->f_path.dentry->d_inode);
-	if (minor < DEVICE_MAX_NUMBER) {
-		minorArray[minor]=kmalloc(BUFFER_SIZE, GFP_ATOMIC);
-		readPos=0;
-		readPos_mod=0;
-		writePos=0;
-		writePos_mod=0;
+	if (minor < DEVICE_MAX_NUMBER && minor >= 0) {
+		minorArray[minor] = kmalloc(BUFFER_SIZE, GFP_KERNEL);
+		readPos[minor] = 0;
+		readPos_mod[minor] = 0;
+		writePos[minor] = 0;
+		writePos_mod[minor] = 0;
 		return 0;
 	}
 	else {
@@ -59,7 +76,7 @@ static ssize_t dharma_read_packet(struct file *filp, char *out_buffer, size_t si
 	int minor=iminor(filp->f_path.dentry->d_inode);
 	int res;
 	int residual;
-    DECLARE_WAIT_QUEUE_HEAD(the_queue);
+    
 
 	// acquire spinlock
 	spin_lock(&(buffer_lock[minor]));
@@ -85,36 +102,33 @@ static ssize_t dharma_read_packet(struct file *filp, char *out_buffer, size_t si
 			spin_lock(&(buffer_lock[minor]));
 		}
 	}
-	
-	/*residual. if there is no real residual, it is equal to PACKET_SIZE.
-	 * residual = how many bytes we have to read effectively */
-	residual=PACKET_SIZE-readPos_mod%PACKET_SIZE;
+	//residual. if there is no real residual, it is equal to PACKET_SIZE.
+	//residual = how many bytes we have to read effectively
+	residual=PACKET_SIZE-readPos_mod[minor]%PACKET_SIZE;
+
 	//bytes that are missing to get to the end of the packet.Used later.
 	int to_end=residual;
-	
 
 	//check there are residual bytes available: writePos_mod-readPos_mod are the unread bytes
-	if(residual> writePos_mod-readPos_mod){
+	if(residual > writePos_mod[minor]-readPos_mod[minor]){
 		/*CHOICE: can be discussed. If there are less than residual bytes, I read all bytes available,
 		 even if they are less than a packet*/
-		residual=writePos_mod-readPos_mod;
+		residual=writePos_mod[minor]-readPos_mod[minor];
 	}
-	res= copy_to_user(out_buffer, (char *)(&(minorArray[minor][readPos_mod])), residual);
+	res= copy_to_user(out_buffer, (char *)(&(minorArray[minor][readPos_mod[minor]])), residual);
 	//update readPos
-	readPos+=residual;
+	readPos[minor]+=residual;
 	/*if I read less than a packet(or its residual), it means that readPos (line before) was updated 
 	 * in a way it does not coincide with the end of the packet, so I must
 	 * add to readPos the quantity it needs to arrive at the end of the packet, and since writePos 
 	 * too is not placed at the end of the frame, I update it to make it coincide with the new readPos, 
 	 * that means the buffer is now empty*/
-	if(residual==writePos_mod-readPos_mod){
-		//now I am sure readPos is at the end of the packet
-		readPos+=(to_end-residual);
-		writePos=readPos;
-		writePos_mod=writePos%BUFFER_SIZE;
+	if(residual==writePos_mod[minor] - readPos_mod[minor]){
+		readPos[minor]+=(to_end-residual);
+		writePos[minor] = readPos[minor];
+		writePos_mod[minor] = writePos[minor] % BUFFER_SIZE;
 	}
-	
-	readPos_mod=readPos%BUFFER_SIZE;
+	readPos_mod[minor] = readPos[minor] % BUFFER_SIZE;
 	spin_unlock(&(buffer_lock[minor]));
 	return residual-res;
 
@@ -197,7 +211,7 @@ static ssize_t dharma_read_stream(struct file *filp, char *out_buffer, size_t si
 	int res=0;
 
 	// how many bytes we can read
-	int readableBytes = writePos - readPos;
+	int readableBytes = writePos[minor] - readPos[minor];
 
 	/*
 		In the previous version the operation was: int readableBytes = writePos_mod - readPos_mod
@@ -220,10 +234,10 @@ static ssize_t dharma_read_stream(struct file *filp, char *out_buffer, size_t si
 		bytesToRead = size;
 	}
 
-	if( readPos_mod + readableBytes < BUFFER_SIZE ){
+	if( readPos_mod[minor] + readableBytes < BUFFER_SIZE ){
 		// before reading, we control whether the amount to be read
 		// is contained in the interval between readPos_mod and the end of the buffer
-		res= copy_to_user(out_buffer, (char *)(&(minorArray[minor][readPos_mod])), bytesToRead);
+		res= copy_to_user(out_buffer, (char *)(&(minorArray[minor][readPos_mod[minor]])), bytesToRead);
 	}
 	else{
 		// in this case, we need to read the last bytes of the buffer and go back at the begin of the buffer
@@ -231,17 +245,17 @@ static ssize_t dharma_read_stream(struct file *filp, char *out_buffer, size_t si
 
 		// leggiamo gli ultimi bytes disponibili dal buffer
 		// plus the leftover (which consists of the initial part of the buffer)
-		res= copy_to_user(out_buffer, (char *)(&(minorArray[minor][readPos_mod])), BUFFER_SIZE - readPos_mod );
+		res= copy_to_user(out_buffer, (char *)(&(minorArray[minor][readPos_mod[minor]])), BUFFER_SIZE - readPos_mod[minor] );
 
 		//we compute the number of bytes to read at the begin of the buffer
-		int leftover = bytesToRead - ( BUFFER_SIZE - readPos_mod );
+		int leftover = bytesToRead - ( BUFFER_SIZE - readPos_mod[minor] );
 		res+= copy_to_user(out_buffer, (char *)(&(minorArray[minor][0])), leftover );
 	}
-	readPos += bytesToRead;
+	readPos[minor] += bytesToRead;
 
 	// we update the read module-pointer
 	// in this case the write pointer is the same as before
-	readPos_mod=readPos%BUFFER_SIZE;
+	readPos_mod[minor] = readPos[minor] % BUFFER_SIZE;
 
 	/*res is the total of bytes unread: bytesToRead is the total of bytes that should have been read.
 	 * so this is the total of bytes read. Va bene che dite? */
@@ -266,15 +280,16 @@ static long dharma_ioctl(struct file *filp,
 
 int init_module(void){
 
-	// dynamic allocation of the major number (through the first parameter = 0)
+	// Dynamic allocation of the major number (through the first parameter = 0).
+	// The function registers a range of 256 minor numbers; the first minor number is 0.
 	major = register_chrdev(0, DEVICE_NAME, &fops);
 
 	if (major < 0) {
-	  printk("Registering noiser device failed\n");
+	  printk("Registering dharma device failed\n");
 	  return major;
 	}
 
-	printk(KERN_INFO "Broadcast device registered, it is assigned major number %d\n", major);
+	printk(KERN_INFO "Dharma device registered, it is assigned major number %d\n", major);
 
 	return 0;
 }
@@ -283,5 +298,5 @@ void cleanup_module(void){
 
 	unregister_chrdev(major, DEVICE_NAME);
 
-	printk(KERN_INFO "Broadcast device unregistered, it was assigned major number %d\n", major);
+	printk(KERN_INFO "Dharma device unregistered, it was assigned major number %d\n", major);
 }
