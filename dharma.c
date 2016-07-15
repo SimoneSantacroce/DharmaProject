@@ -56,7 +56,7 @@ static ssize_t dharma_read_packet(struct file *filp, char *out_buffer, size_t si
 	int minor=iminor(filp->f_path.dentry->d_inode);
 	// acquire spinlock
 	spin_lock(&(buffer_lock[minor]));
-	int ret_val = 0;
+	
 	DECLARE_WAIT_QUEUE_HEAD(the_queue);
 
 	// N.B. buffer check should be atomic too.
@@ -100,7 +100,7 @@ static ssize_t dharma_read_packet(struct file *filp, char *out_buffer, size_t si
 	}
 	readPos_mod=readPos%BUFFER_SIZE;
 	spin_unlock(&(buffer_lock[minor]));
-	return res;
+	return residual-res;
 	
 	
 	/* DA BUTTARE SE LEGGIAMO SOLO UN PACCHETTO AL PIÙ	
