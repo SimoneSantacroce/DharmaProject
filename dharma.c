@@ -50,13 +50,14 @@ static ssize_t dharma_write(struct file *filp,
 
 static ssize_t dharma_read(struct file *filp, char *out_buffer, size_t size, loff_t *offset) {
 	// should we check if file is open/valid?
+	return 0;
 }
 
 static ssize_t dharma_read_packet(struct file *filp, char *out_buffer, size_t size, loff_t *offset) {
 	int minor=iminor(filp->f_path.dentry->d_inode);
 	// acquire spinlock
 	spin_lock(&(buffer_lock[minor]));
-	
+
 	DECLARE_WAIT_QUEUE_HEAD(the_queue);
 
 	// N.B. buffer check should be atomic too.
@@ -81,6 +82,7 @@ static ssize_t dharma_read_packet(struct file *filp, char *out_buffer, size_t si
 	//return value
 	int res=0;
 	//residual. if there is no real residual, it is equal to PACKET_SIZE.
+	//residual = how many bytes we have to read effectively
 	int residual=PACKET_SIZE-readPos_mod%PACKET_SIZE;
 	
 	//check there are residual bytes available: writePos_mod-readPos_mod are the unread bytes
@@ -153,8 +155,83 @@ static ssize_t dharma_read_packet(struct file *filp, char *out_buffer, size_t si
 }
 
 static ssize_t dharma_read_stream(struct file *filp, char *out_buffer, size_t size, loff_t *offset) {
-	//solo per compilare
-	return 0;
+	int minor=iminor(filp->f_path.dentry->d_inode);
+	// acquire spinlock
+	spin_lock(&(buffer_lock[minor]));
+	DECLARE_WAIT_QUEUE_HEAD(the_queue);
+
+	if(buffer_is_empty){
+		// release spinlock
+		spin_unlock(&(buffer_lock[minor]));
+		//if op is non blocking
+		if (filp->f_flags & O_NONBLOCK) {
+			// different choice with respect to the read_packet case, because:
+			// return -1 represents an error, instead I think that in this case
+			// we have to return "no bytes read" = "0 bytes read"
+			return 0;
+		} else {
+			// insert into wait queue
+			if(wait_event_interruptible(the_queue, !buffer_is_empty))
+				return -1;
+			//acquire spinlock
+			spin_lock(&(buffer_lock[minor]));
+		}
+	}
+	// ...like in the read_packet case
+
+	//return value
+	int res=0;
+
+	// how many bytes we can read
+	int readableBytes = writePos - readPos;
+
+	/*
+		In the previous version the operation was: int readableBytes = writePos_mod - readPos_mod
+		but in this way, if the write pointer precedes the read pointer (legal case if the writePos > readPos)
+		we will obtain a negative value of readableBytes!
+	*/
+
+	// amount of bytes to read (updated during the control phase)
+	int bytesToRead = 0;
+
+	// we compare the readable bytes (an int value) with the number of bytes the user
+	// wants to read (a size_t value)
+	if(readableBytes>=0 && (size_t)readableBytes < size){
+		// if the user wants to read a number of bytes greater than the possible amount
+		// then we read the possible amount and set the new read pointer
+		bytesToRead = readableBytes;
+	}
+	else{
+		// the user wants to read an amount of bytes which does not exceed the write pointer
+		bytesToRead = size;
+	}
+
+	if( readPos_mod + readableBytes < BUFFER_SIZE ){
+		// before reading, we control whether the amount to be read 
+		// is contained in the interval between readPos_mod and the end of the buffer
+		res= copy_to_user(out_buffer, (char *)(&(minorArray[minor][readPos_mod])), bytesToRead);
+	}
+	else{
+		// in this case, we need to read the last bytes of the buffer and go back at the begin of the buffer
+		// in order to complete the read
+
+		// leggiamo gli ultimi bytes disponibili dal buffer
+		// plus the leftover (which consists of the initial part of the buffer)
+		res= copy_to_user(out_buffer, (char *)(&(minorArray[minor][readPos_mod])), BUFFER_SIZE - readPos_mod );
+
+		//we compute the number of bytes to read at the begin of the buffer
+		int leftover = bytesToRead - ( BUFFER_SIZE - readPos_mod );
+		res+= copy_to_user(out_buffer, (char *)(&(minorArray[minor][0])), leftover );
+	}
+	readPos += bytesToRead;
+
+	// we update the read module-pointer 
+	// in this case the write pointer is the same as before
+	readPos_mod=readPos%BUFFER_SIZE;
+
+	/*res is the total of bytes unread: bytesToRead is the total of bytes that should have been read.
+	 * so this is the total of bytes read. Va bene che dite? */
+	return bytesToRead-res;
 }
 
 static long dharma_ioctl(struct file *filp,
