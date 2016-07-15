@@ -38,7 +38,7 @@ make clean
 
 ### Installing
 
-Let's fisr install the module with:
+Let's first install the module with:
 
 ```shell
 sudo make insert
