@@ -22,9 +22,7 @@ int writePos[DEVICE_MAX_NUMBER];
 DECLARE_WAIT_QUEUE_HEAD(read_queue);
 DECLARE_WAIT_QUEUE_HEAD(write_queue);
 
-inline int is_empty(int minor) {
-	return readPos[minor] == writePos[minor];
-}
+#define IS_EMPTY(minor) (readPos[minor] == writePos[minor])
 
 
 /* The operations */
@@ -74,37 +72,33 @@ static ssize_t dharma_read(struct file *filp, char *out_buffer, size_t size, lof
 
 static ssize_t dharma_read_packet(struct file *filp, char *out_buffer, size_t size, loff_t *offset) {
 	int minor=iminor(filp->f_path.dentry->d_inode);
-	int res;
-	int residual;
-    
+	int res = 0;
 
 	// acquire spinlock
 	spin_lock(&(buffer_lock[minor]));
 
-    res = 0;
-
-	// N.B. buffer check should be atomic too.
-	if (buffer_is_empty) {
+	while (IS_EMPTY(minor)) {
 		// release spinlock
 		spin_unlock(&(buffer_lock[minor]));
 		//if op is non blocking. EGAIN:resource is temporarily unavailable
-		if (filp->f_flags & O_NONBLOCK) {
+		if (filp->f_flags & O_NONBLOCK)
 			return -EAGAIN;
-		} else {
-			/* insert into wait queue. wait_event_interruptible returns ERESTARTSYS
-			 * if it is interrupted by a signal. The system call can be re-executed if there is some
-			 * interruption*/
-			 /*questo è quello che ho capito da qui:
-			  * http://stackoverflow.com/questions/9576604/what-does-erestartsys-used-while-writing-linux-driver */
-			if(wait_event_interruptible(the_queue, !buffer_is_empty))
-				return -ERESTARTSYS;
-			//acquire spinlock
-			spin_lock(&(buffer_lock[minor]));
-		}
+			
+		/* insert into wait queue. wait_event_interruptible returns ERESTARTSYS
+		 * if it is interrupted by a signal. The system call can be re-executed if there is some
+		 * interruption*/
+		 /*questo è quello che ho capito da qui:
+		  * http://stackoverflow.com/questions/9576604/what-does-erestartsys-used-while-writing-linux-driver */
+		if(wait_event_interruptible(read_queue, !IS_EMPTY(minor)))
+			return -ERESTARTSYS;
+		// otherwise loop, but first re-acquire spinlock
+		spin_lock(&(buffer_lock[minor]));
+		// this way once a process ceases to spin, it will actually check if buffer is still non-empty
+		// or if the previous guy consumed everything
 	}
-	//residual. if there is no real residual, it is equal to PACKET_SIZE.
-	//residual = how many bytes we have to read effectively
-	residual=PACKET_SIZE-readPos_mod[minor]%PACKET_SIZE;
+	// if we get here, then data is in the buffer AND we have exclusive access to it: we're ready to go.
+	
+	int residual=PACKET_SIZE-readPos_mod[minor]%PACKET_SIZE; // how many bytes we have to read effectively
 
 	//bytes that are missing to get to the end of the packet.Used later.
 	int to_end=residual;
@@ -184,28 +178,28 @@ static ssize_t dharma_read_packet(struct file *filp, char *out_buffer, size_t si
 
 static ssize_t dharma_read_stream(struct file *filp, char *out_buffer, size_t size, loff_t *offset) {
 	int minor=iminor(filp->f_path.dentry->d_inode);
+	
 	// acquire spinlock
 	spin_lock(&(buffer_lock[minor]));
-	DECLARE_WAIT_QUEUE_HEAD(the_queue);
 
-	if(buffer_is_empty){
+	while (IS_EMPTY(minor)) {
 		// release spinlock
 		spin_unlock(&(buffer_lock[minor]));
 		//if op is non blocking
-		if (filp->f_flags & O_NONBLOCK) {
+		if (filp->f_flags & O_NONBLOCK)
 			// different choice with respect to the read_packet case, because:
 			// return -1 represents an error, instead I think that in this case
 			// we have to return "no bytes read" = "0 bytes read"
 			return 0;
-		} else {
-			// insert into wait queue
-			if(wait_event_interruptible(the_queue, !buffer_is_empty))
-				return -1;
-			//acquire spinlock
-			spin_lock(&(buffer_lock[minor]));
-		}
+		
+		if(wait_event_interruptible(read_queue, !IS_EMPTY(minor)))
+			return -ERESTARTSYS;
+		// otherwise loop, but first re-acquire spinlock
+		spin_lock(&(buffer_lock[minor]));
+		// this way once a process ceases to spin, it will actually check if buffer is still non-empty
+		// or if the previous guy consumed everything
 	}
-	// ...like in the read_packet case
+	// if we get here, then data is in the buffer AND we have exclusive access to it: we're ready to go.
 
 	//return value
 	int res=0;
