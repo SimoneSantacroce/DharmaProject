@@ -77,8 +77,39 @@ static ssize_t dharma_write(struct file *filp, const char *buff, size_t len, lof
     }
 
     /* If we reach this point, we have the exclusive access to the buffer,
-     * and there is room into the buffer -> we can move on
+     * and there is (some) room into the buffer -> we can move on
      */
+    
+    //  First case: we can write all the stuff the user wants to write
+    if(readPos[minor]+BUFFER_SIZE < writePos[minor]+count){    
+        // Subcase 1) one copy_from_user is required
+        if(count <= (BUFFER_SIZE - writePos_mod[minor])){
+            res = copy_from_user((char*)(&(minorArray[minor][writePos_mod[minor]])), buff, count);
+        }
+        // Subcase 2) two copy_from_user are required
+        else{
+            int partial_count = BUFFER_SIZE-writePos_mod[minor];
+            res  = copy_from_user((char*)(&(minorArray[minor][writePos_mod[minor]])), buff, partial_count);
+            res += copy_from_user((char*)(&(minorArray[minor][0])), buff+partial_count, count - partial_count);
+        }
+
+        // In both cases, we need to update the write file pointer.
+        writePos[minor] += count;
+        writePos_mod[minor] = writePos[minor] % BUFFER_SIZE;
+    }
+    // Second case: there is not enough room for all the "count" bytes.
+    else{
+        /*  Two valid alternatives: 
+         *      1) I don't want to write only a part of the message
+                    => FAIL in non-blocking mode, put in a wait-queue in blocking mode
+         *      2) I'm ok with writing only a part of the message
+                    => I will neither fail not put the process into a wait queue,
+                    but I'll simply write what I can, and return "success"
+         */
+        //TODO
+    }
+
+    /* IGNORE THE FOLLOWING
     if(count <= (BUFFER_SIZE - writePos_mod[minor])){ //the simplest case : I can use one copy_from_user
 
         if(readPos_mod[minor] > writePos_mod[minor]){ // In this case, readPos_mod is beyond writePos_mod
@@ -101,7 +132,7 @@ static ssize_t dharma_write(struct file *filp, const char *buff, size_t len, lof
     else{ // In this case, we need to use two copy_from_user (circular buffer)
         //TODO
     }
-
+    */
     spin_unlock(&(buffer_lock[minor]));
     return res;
 }
@@ -283,14 +314,15 @@ static ssize_t dharma_read_stream(struct file *filp, char *out_buffer, size_t si
     else{
         // in this case, we need to read the last bytes of the buffer and go back at the begin of the buffer
         // in order to complete the read
+        int partial_count = BUFFER_SIZE - readPos_mod[minor];
 
         // leggiamo gli ultimi bytes disponibili dal buffer
         // plus the leftover (which consists of the initial part of the buffer)
-        res= copy_to_user(out_buffer, (char *)(&(minorArray[minor][readPos_mod[minor]])), BUFFER_SIZE - readPos_mod[minor] );
+        res= copy_to_user(out_buffer, (char *)(&(minorArray[minor][readPos_mod[minor]])), partial_count );
 
         //we compute the number of bytes to read at the begin of the buffer
-        int leftover = bytesToRead - ( BUFFER_SIZE - readPos_mod[minor] );
-        res+= copy_to_user(out_buffer, (char *)(&(minorArray[minor][0])), leftover );
+        int leftover = bytesToRead - partial_count;
+        res+= copy_to_user(out_buffer+partial_count, (char *)(&(minorArray[minor][0])), leftover );
     }
     readPos[minor] += bytesToRead;
 
