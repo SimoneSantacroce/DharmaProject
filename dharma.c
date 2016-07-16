@@ -121,7 +121,7 @@ static ssize_t dharma_read_packet(struct file *filp, char *out_buffer, size_t si
 	 * add to readPos the quantity it needs to arrive at the end of the packet, and since writePos 
 	 * too is not placed at the end of the frame, I update it to make it coincide with the new readPos, 
 	 * that means the buffer is now empty*/
-	if(residual==writePos_mod[minor] - readPos_mod[minor]){
+	if(residual==writePos[minor] - readPos[minor]){
 		readPos[minor]+=(to_end-residual);
 		writePos[minor] = readPos[minor];
 		writePos_mod[minor] = writePos[minor] % BUFFER_SIZE;
