@@ -106,33 +106,19 @@ static ssize_t dharma_write(struct file *filp, const char *buff, size_t len, lof
                     => I will neither fail not put the process into a wait queue,
                     but I'll simply write what I can, and return "success"
          */
+        
+        // Alternative 1) I don't want to write only a part of the message
+        if (filp->f_flags & O_NONBLOCK) //op mode is NON BLOCKING
+            res = -EAGAIN;
+
+        else                            //op mode is BLOCKING
+            if (wait_event_interruptible(write_queue, readPos[minor]+BUFFER_SIZE > writePos[minor]+count))
+                res = -ERESTARTSYS;     //-ERESTARTSYS is returned iff the thread is woken up by a signal
+
+        // Alternative 2) I'm ok with writing only a part of the message
         //TODO
     }
 
-    /* IGNORE THE FOLLOWING
-    if(count <= (BUFFER_SIZE - writePos_mod[minor])){ //the simplest case : I can use one copy_from_user
-
-        if(readPos_mod[minor] > writePos_mod[minor]){ // In this case, readPos_mod is beyond writePos_mod
-            if(readPos_mod[minor] - writePos_mod[minor] > count){
-                // OK: there is enough room to write all the stuff the user wants to write.
-                //  and we can do it with only one copy_from_user
-                // TODO
-            }
-            else{
-                // WARNING: there is no enough room to write all the stuff the user wants to write.
-                // TODO
-            }
-        }
-        else{   // In this case, readPos_mod is behind writePos_mod
-            //  OK: there is enough room to write all the stuff the user wants to write,
-            //  and we can do it with only one copy_from_user
-            // TODO
-        }
-    }
-    else{ // In this case, we need to use two copy_from_user (circular buffer)
-        //TODO
-    }
-    */
     spin_unlock(&(buffer_lock[minor]));
     return res;
 }
