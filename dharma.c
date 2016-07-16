@@ -81,7 +81,7 @@ static ssize_t dharma_write(struct file *filp, const char *buff, size_t len, lof
      */
     
     //  First case: we can write all the stuff the user wants to write
-    if(readPos[minor]+BUFFER_SIZE < writePos[minor]+count){    
+    if(readPos[minor]+BUFFER_SIZE > writePos[minor]+count){    
         // Subcase 1) one copy_from_user is required
         if(count <= (BUFFER_SIZE - writePos_mod[minor])){
             res = copy_from_user((char*)(&(minorArray[minor][writePos_mod[minor]])), buff, count);
