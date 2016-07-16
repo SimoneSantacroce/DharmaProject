@@ -103,11 +103,15 @@ static ssize_t dharma_read_packet(struct file *filp, char *out_buffer, size_t si
 	//bytes that are missing to get to the end of the packet.Used later.
 	int to_end=residual;
 
-	//check there are residual bytes available: writePos_mod-readPos_mod are the unread bytes
-	if(residual > writePos_mod[minor]-readPos_mod[minor]){
+	//check there are residual bytes available: writePos-readPos are the unread bytes
+	/* Note from Rob: we've to use writePos and readPos (instead of writePos_mod and readPos_mod)
+	 * because we could have a situation where writePos_mod points to the beginning of the buffer
+	 * and readPos_mod points to the end of the buffer. In these cases, residual would become negative. 
+	 */
+	if(residual > writePos[minor]-readPos[minor]){
 		/*CHOICE: can be discussed. If there are less than residual bytes, I read all bytes available,
 		 even if they are less than a packet*/
-		residual=writePos_mod[minor]-readPos_mod[minor];
+		residual=writePos[minor]-readPos[minor];
 	}
 	res= copy_to_user(out_buffer, (char *)(&(minorArray[minor][readPos_mod[minor]])), residual);
 	//update readPos
