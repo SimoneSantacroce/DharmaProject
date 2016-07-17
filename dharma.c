@@ -56,73 +56,61 @@ static int dharma_release(struct inode *inode, struct file *file)
 }
 
 static ssize_t dharma_write(struct file *filp, const char *buff, size_t len, loff_t *off){
+    /*  Two valid alternatives for implementing the write; if there isn't enough space to write all the data: 
+     *      1) I don't want to write only a part of the message
+                => FAIL in non-blocking mode, put in a wait-queue in blocking mode
+     *      2) I'm ok with writing only a part of the message
+                => I will neither fail nor put the process into a wait queue,
+                but I'll simply write what I can, and return "success"
+     */
     int minor=iminor(filp->f_path.dentry->d_inode);
     int res = 0;
 
     // acquire spinlock
     spin_lock(&(buffer_lock[minor]));
+    
+    // fail if the process wants to write data bigger than the buffer size
+    if (count > BUFFER_SIZE) {
+        return -EINVAL;
+    }
 
-    // If the buffer is full, clearly we cannot write.
-    while (writePos[minor] - readPos[minor] == BUFFER_SIZE ){
+    // check if there's sufficient space to perform the write
+    while (readPos[minor]+BUFFER_SIZE >= writePos[minor]+count) {
         //release the spinlock for writing
         spin_unlock(&(buffer_lock[minor]));
         //op mode is NON BLOCKING
         if (filp->f_flags & O_NONBLOCK)
                 return -EAGAIN; //no data can be written, the buffer is full
         //else op mode is BLOCKING
-        if (wait_event_interruptible(write_queue, writePos < BUFFER_SIZE))
+        if (wait_event_interruptible(write_queue, readPos[minor]+BUFFER_SIZE >= writePos[minor]+count))
                 return -ERESTARTSYS; //-ERESTARTSYS is returned iff the thread is woken up by a signal
         // otherwise loop, but first re-acquire spinlock
         spin_lock(&(buffer_lock[minor]));
     }
 
-    /* If we reach this point, we have the exclusive access to the buffer,
-     * and there is (some) room into the buffer -> we can move on
+    /* If we reach this point, we have exclusive access to the buffer
+     * AND there is sufficient room into the buffer -> we can move on
      */
     
-    //  First case: we can write all the stuff the user wants to write
-    if(readPos[minor]+BUFFER_SIZE >= writePos[minor]+count){    
-        // Subcase 1) one copy_from_user is required
-        if(count <= (BUFFER_SIZE - writePos_mod[minor])){
-            res = copy_from_user((char*)(&(minorArray[minor][writePos_mod[minor]])), buff, count);
-        }
-        // Subcase 2) two copy_from_user are required
-        else{
-            int partial_count = BUFFER_SIZE-writePos_mod[minor];
-            res  = copy_from_user((char*)(&(minorArray[minor][writePos_mod[minor]])), buff, partial_count);
-            res += copy_from_user((char*)(&(minorArray[minor][0])), buff+partial_count, count - partial_count);
-        }
-
-        if(res != 0){
-            res = -EINVAL; // if copy_from_user didn't return 0, there was a problem in the parameters. 
-        }
-
-        // If the copy_from_user succeeded (i.e., it returned 0), we need to update the write file pointer.
-        if( res == 0 ){
-            writePos[minor] += count;
-            writePos_mod[minor] = writePos[minor] % BUFFER_SIZE;
-        }
+    // Case 1) one copy_from_user is required
+    if(count <= (BUFFER_SIZE - writePos_mod[minor])){
+        res = copy_from_user((char*)(&(minorArray[minor][writePos_mod[minor]])), buff, count);
     }
-    // Second case: there is not enough room for all the "count" bytes.
+    // Case 2) two copy_from_user are required
     else{
-        /*  Two valid alternatives: 
-         *      1) I don't want to write only a part of the message
-                    => FAIL in non-blocking mode, put in a wait-queue in blocking mode
-         *      2) I'm ok with writing only a part of the message
-                    => I will neither fail not put the process into a wait queue,
-                    but I'll simply write what I can, and return "success"
-         */
-        
-        // Alternative 1) I don't want to write only a part of the message
-        if (filp->f_flags & O_NONBLOCK) //op mode is NON BLOCKING
-            res = -EAGAIN;
+        int partial_count = BUFFER_SIZE-writePos_mod[minor];
+        res  = copy_from_user((char*)(&(minorArray[minor][writePos_mod[minor]])), buff, partial_count);
+        res += copy_from_user((char*)(&(minorArray[minor][0])), buff+partial_count, count - partial_count);
+    }
 
-        else                            //op mode is BLOCKING
-            if (wait_event_interruptible(write_queue, readPos[minor]+BUFFER_SIZE > writePos[minor]+count))
-                res = -ERESTARTSYS;     //-ERESTARTSYS is returned iff the thread is woken up by a signal
+    if(res != 0){
+        res = -EINVAL; // if copy_from_user didn't return 0, there was a problem in the parameters. 
+    }
 
-        // Alternative 2) I'm ok with writing only a part of the message
-        //TODO
+    // If the copy_from_user succeeded (i.e., it returned 0), we need to update the write file pointer.
+    if( res == 0 ){
+        writePos[minor] += count;
+        writePos_mod[minor] = writePos[minor] % BUFFER_SIZE;
     }
 
     spin_unlock(&(buffer_lock[minor]));
