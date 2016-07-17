@@ -114,6 +114,14 @@ static ssize_t dharma_read_packet(struct file *filp, char *out_buffer, size_t si
 		residual=writePos[minor]-readPos[minor];
 	}
 	res= copy_to_user(out_buffer, (char *)(&(minorArray[minor][readPos_mod[minor]])), residual);
+	
+	//if res>0, it means an unexpected error happened, so we abort the operation (=not update pointers)
+	if(res>0){
+		//as if 0 bytes were read. Exit
+		return 0;
+	}
+	//Note: if we arrive here, everything was read. OK
+	
 	//update readPos
 	readPos[minor]+=residual;
 	/*if I read less than a packet(or its residual), it means that readPos (line before) was updated 
@@ -128,7 +136,7 @@ static ssize_t dharma_read_packet(struct file *filp, char *out_buffer, size_t si
 	}
 	readPos_mod[minor] = readPos[minor] % BUFFER_SIZE;
 	spin_unlock(&(buffer_lock[minor]));
-	return residual-res;
+	return residual;
 
 
 	/* DA BUTTARE SE LEGGIAMO SOLO UN PACCHETTO AL PIÙ
