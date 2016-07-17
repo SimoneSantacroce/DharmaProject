@@ -81,7 +81,7 @@ static ssize_t dharma_write(struct file *filp, const char *buff, size_t len, lof
      */
     
     //  First case: we can write all the stuff the user wants to write
-    if(readPos[minor]+BUFFER_SIZE > writePos[minor]+count){    
+    if(readPos[minor]+BUFFER_SIZE >= writePos[minor]+count){    
         // Subcase 1) one copy_from_user is required
         if(count <= (BUFFER_SIZE - writePos_mod[minor])){
             res = copy_from_user((char*)(&(minorArray[minor][writePos_mod[minor]])), buff, count);
@@ -93,9 +93,15 @@ static ssize_t dharma_write(struct file *filp, const char *buff, size_t len, lof
             res += copy_from_user((char*)(&(minorArray[minor][0])), buff+partial_count, count - partial_count);
         }
 
-        // In both cases, we need to update the write file pointer.
-        writePos[minor] += count;
-        writePos_mod[minor] = writePos[minor] % BUFFER_SIZE;
+        if(res != 0){
+            res = -EINVAL; // if copy_from_user didn't return 0, there was a problem in the parameters. 
+        }
+
+        // If the copy_from_user succeeded (i.e., it returned 0), we need to update the write file pointer.
+        if( res == 0 ){
+            writePos[minor] += count;
+            writePos_mod[minor] = writePos[minor] % BUFFER_SIZE;
+        }
     }
     // Second case: there is not enough room for all the "count" bytes.
     else{
