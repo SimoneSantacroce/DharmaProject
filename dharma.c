@@ -117,12 +117,15 @@ static ssize_t dharma_read_packet(struct file *filp, char *out_buffer, size_t si
 	res= copy_to_user(out_buffer, (char *)(&(minorArray[minor][readPos_mod[minor]])), residual);
 	
 	//if res>0, it means an unexpected error happened, so we abort the operation (=not update pointers)
-	if(res>0){
+	if(res!=0){
 		//as if 0 bytes were read. Exit
-		return 0;
+		return -EINVAL;
 	}
 	//Note: if we arrive here, everything was read. OK
 	
+	if(!IS_EMPTY(minor)){
+		wake_up_interruptible(write_queue);
+	}
 	//update readPos
 	readPos[minor]+=residual;
 	/*if I read less than a packet(or its residual), it means that readPos (line before) was updated 
@@ -258,15 +261,25 @@ static ssize_t dharma_read_stream(struct file *filp, char *out_buffer, size_t si
 		int leftover = bytesToRead - ( BUFFER_SIZE - readPos_mod[minor] );
 		res+= copy_to_user(out_buffer, (char *)(&(minorArray[minor][0])), leftover );
 	}
+	
+	//if res>0, it means an unexpected error happened, so we abort the operation (=not update pointers)
+	if(res!=0){
+		//as if 0 bytes were read. Exit
+		return -EINVAL;
+	}
+	
+	//Note: if we arrive here, everything was read. OK
+	
+	if(!IS_EMPTY(minor)){
+		wake_up_interruptible(write_queue);
+	}
 	readPos[minor] += bytesToRead;
 
 	// we update the read module-pointer
 	// in this case the write pointer is the same as before
 	readPos_mod[minor] = readPos[minor] % BUFFER_SIZE;
 
-	/*res is the total of bytes unread: bytesToRead is the total of bytes that should have been read.
-	 * so this is the total of bytes read. Va bene che dite? */
-	return bytesToRead-res;
+	return bytesToRead;
 }
 
 static long dharma_ioctl(struct file *filp, unsigned int cmd, unsigned long arg) {
