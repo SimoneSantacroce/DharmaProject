@@ -23,6 +23,7 @@ DECLARE_WAIT_QUEUE_HEAD(read_queue);
 DECLARE_WAIT_QUEUE_HEAD(write_queue);
 
 #define IS_EMPTY(minor) (readPos[minor] == writePos[minor])
+#define O_PACKET = 0x80000000;
 
 
 /* The operations */
@@ -268,24 +269,32 @@ static ssize_t dharma_read_stream(struct file *filp, char *out_buffer, size_t si
 	return bytesToRead-res;
 }
 
-static long dharma_ioctl(struct file *filp,
-	unsigned int cmd,
-	unsigned long arg)
-{
-	int minor = iminor(filp->f_path.dentry->d_inode);
-	int size;
-
-	switch (cmd)
-	{
-		case DHARMA_SET_BLOCKING:
-		break;
+static long dharma_ioctl(struct file *filp, unsigned int cmd, unsigned long arg) {
+	
+	switch(cmd){
+		case DHARMA_PACKET_MODE :
+			printk("Packet mode now is active\n");
+			filp->private_data |= O_PACKET;
+			break;
+		case DHARMA_STREAM_MODE :
+			printk("Stream mode now is active\n");
+			filp->private_data &= ~O_PACKET;
+			break;
+		case DHARMA_SET_BLOCKING :
+			printk("Blocking mode now is active\n");
+			filp->f_flags &= ~O_NONBLOCK;
+			break;
+		case DHARMA_SET_NONBLOCKING :
+			printk("Non blocking mode now is active\n");
+			filp->f_flags |= O_NONBLOCK;
+			break;
+		default :
+			return -EINVAL;	// invalid argument
 	}
-	//solo per compilare
 	return 0;
 }
 
 int init_module(void){
-
 	// Dynamic allocation of the major number (through the first parameter = 0).
 	// The function registers a range of 256 minor numbers; the first minor number is 0.
 	major = register_chrdev(0, DEVICE_NAME, &fops);
