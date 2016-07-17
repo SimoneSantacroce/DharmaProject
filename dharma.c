@@ -123,9 +123,8 @@ static ssize_t dharma_read_packet(struct file *filp, char *out_buffer, size_t si
 	}
 	//Note: if we arrive here, everything was read. OK
 	
-	if(!IS_EMPTY(minor)){
-		wake_up_interruptible(write_queue);
-	}
+	wake_up_interruptible(write_queue);
+	
 	//update readPos
 	readPos[minor]+=residual;
 	/*if I read less than a packet(or its residual), it means that readPos (line before) was updated 
@@ -270,9 +269,9 @@ static ssize_t dharma_read_stream(struct file *filp, char *out_buffer, size_t si
 	
 	//Note: if we arrive here, everything was read. OK
 	
-	if(!IS_EMPTY(minor)){
-		wake_up_interruptible(write_queue);
-	}
+	
+	wake_up_interruptible(write_queue);
+	
 	readPos[minor] += bytesToRead;
 
 	// we update the read module-pointer
