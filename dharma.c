@@ -58,33 +58,6 @@ static int dharma_release(struct inode *inode, struct file *file)
 static ssize_t dharma_write(struct file *filp, const char *buff, size_t len, loff_t *off){
     int minor=iminor(filp->f_path.dentry->d_inode);
     int res = 0;
-    
-    
-        // acquire spinlock
-    spin_lock(&(buffer_lock[minor]));
-
-    while (IS_EMPTY(minor)) {
-        // release spinlock
-        spin_unlock(&(buffer_lock[minor]));
-        //if op is non blocking. EGAIN:resource is temporarily unavailable
-        if (filp->f_flags & O_NONBLOCK)
-            return -EAGAIN;
-            
-        /* insert into wait queue. wait_event_interruptible returns ERESTARTSYS
-         * if it is interrupted by a signal. The system call can be re-executed if there is some
-         * interruption*/
-         /*questo è quello che ho capito da qui:
-          * http://stackoverflow.com/questions/9576604/what-does-erestartsys-used-while-writing-linux-driver */
-        if(wait_event_interruptible(read_queue, !IS_EMPTY(minor)))
-            return -ERESTARTSYS;
-        // otherwise loop, but first re-acquire spinlock
-        spin_lock(&(buffer_lock[minor]));
-        // this way once a process ceases to spin, it will actually check if buffer is still non-empty
-        // or if the previous guy consumed everything
-    }
-    // if we get here, then data is in the buffer AND we have exclusive access to it: we're ready to go.
-    
-    
 
     // acquire spinlock
     spin_lock(&(buffer_lock[minor]));
