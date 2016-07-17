@@ -65,7 +65,7 @@ static ssize_t dharma_write(struct file *filp,
 
 static ssize_t dharma_read(struct file *filp, char *out_buffer, size_t size, loff_t *offset) {
 	// should we check if file is open/valid?
-
+	
 	//solo per compilare
 	return 0;
 }
