@@ -107,6 +107,8 @@ static ssize_t dharma_write(struct file *filp, const char *buff, size_t len, lof
     if(res != 0){
         res = -EINVAL; // if copy_from_user didn't return 0, there was a problem in the parameters. 
     }
+    
+    wake_up_interruptible(read_queue);
 
     // If the copy_from_user succeeded (i.e., it returned 0), we need to update the write file pointer.
     if( res == 0 ){
