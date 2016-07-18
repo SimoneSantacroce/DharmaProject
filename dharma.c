@@ -41,6 +41,10 @@ static int dharma_open(struct inode *inode, struct file *file)
         readPos_mod[minor]  = 0;
         writePos[minor]     = 0;
         writePos_mod[minor] = 0;
+        
+        //initialize private data. will be needed to set packet or stream mode
+        file->private_data=kmalloc(sizeof(long), GFP_KERNEL);
+        *((long *) file->private_data)=0;
         return 0;
     }
     else {
@@ -51,6 +55,7 @@ static int dharma_open(struct inode *inode, struct file *file)
 static int dharma_release(struct inode *inode, struct file *file)
 {
     module_put(THIS_MODULE);
+    printk("releasing\n");
     // close does NOT invalidate the buffer
     // buffer stays in memory until the module is unmounted
     return 0;
@@ -343,21 +348,26 @@ static long dharma_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
     /*filp->private_data is of type void *. To do operations & and | I must cast it 
      * to int */
     switch(cmd){
-        case DHARMA_PACKET_MODE :
+		case DHARMA_SET_PACKET_MODE :
             printk("Packet mode now is active\n");
-            *((int *) filp->private_data) |= O_PACKET;
+            *((long *) filp->private_data) |= O_PACKET;
+            printk("private data is %ld\n", *((long *) filp->private_data));
             break;
-        case DHARMA_STREAM_MODE :
+        case DHARMA_SET_STREAM_MODE :
             printk("Stream mode now is active\n");
-            *((int *) filp->private_data) &= ~O_PACKET;
+            *((long *) filp->private_data) &= ~O_PACKET;
+            printk("private data is %ld\n", *((long *) filp->private_data));
             break;
+        
         case DHARMA_SET_BLOCKING :
             printk("Blocking mode now is active\n");
             filp->f_flags &= ~O_NONBLOCK;
+            printk("flag is %d\n", filp->f_flags);
             break;
         case DHARMA_SET_NONBLOCKING :
             printk("Non blocking mode now is active\n");
             filp->f_flags |= O_NONBLOCK;
+            printk("flag data is %d\n", filp->f_flags);
             break;
         default :
             return -EINVAL; // invalid argument
