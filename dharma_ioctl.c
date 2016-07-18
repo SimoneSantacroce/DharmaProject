@@ -21,9 +21,9 @@ void get_read_mode(int fd)
 	}
 }
 
-void set_read_mode(int fd , char *argv)
+void set_read_mode(int fd , int argv)
 {
-	int res = atoi(argv);
+	int res = argv;
 
 	if (ioctl(fd, DHARMA_SET_READ_MODE, &res) == -1)
 	{
@@ -66,8 +66,7 @@ int main(int argc, char const *argv[])
 	if (argc < 3)
 		goto help;
 
-	int minor = argv[1];
-
+	const char * minor = argv[1];
 	int mode_stream = 0;
 	int mode_packet = 0;
 	int blocking = 0;
@@ -107,7 +106,7 @@ int main(int argc, char const *argv[])
 		goto help;
 
 	/*queste parentesi sono per compilare
-	 * http://stackoverflow.com/questions/20654191/c-stack-memory-goto-and-jump-into-scope-of-identifier-with-variably-modified */
+	 * http://stackoverflow.com/questions/20654191/c-stack-memory-goto-and-jump-into-scope-of-identifier-with-variably-modified */ 
 	{char *file_name = "/dev/dharma";
 	char new_file_name[strlen(file_name) + 1];
 	int fd;
@@ -122,6 +121,7 @@ int main(int argc, char const *argv[])
 		perror("ioctl open error\n");
 		return 2;
 	}
+	
 
 	if (mode_stream)
 		set_read_mode(fd, DHARMA_STREAM_MODE);
