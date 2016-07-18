@@ -51,7 +51,7 @@ void set_blocking_flag(int fd)
 void reset_blocking_flag(int fd)
 {
 	int res;
-	if (ioctl(fd, DHARMA_RESET_BLOCKING, &res) == -1)
+	if (ioctl(fd, DHARMA_SET_NONBLOCKING, &res) == -1)
 	{
 		perror("dharma ioctl reset blocking flag\n");
 	}
@@ -106,7 +106,9 @@ int main(int argc, char const *argv[])
 	if (blocking && not_blocking)
 		goto help;
 
-	char *file_name = "/dev/dharma";
+	/*queste parentesi sono per compilare
+	 * http://stackoverflow.com/questions/20654191/c-stack-memory-goto-and-jump-into-scope-of-identifier-with-variably-modified */
+	{char *file_name = "/dev/dharma";
 	char new_file_name[strlen(file_name) + 1];
 	int fd;
 
@@ -133,7 +135,7 @@ int main(int argc, char const *argv[])
 	if(not_blocking)
 		reset_blocking_flag(fd);
 
-	return 0;
+	return 0;}
 
 help:
 	fprintf(stderr, "Usage: %s minor [-s | -p] [-b | -nb]\n", argv[0]);
