@@ -1,7 +1,7 @@
 Design Choices
 ==============
 
-*All or Nothing* v.s. *Best Effort"*
+*All or Nothing* v.s. *Best Effort*
 ------------------------------------
 
 Since the project specification didn't put any contraints on the chosen semantic for the 
