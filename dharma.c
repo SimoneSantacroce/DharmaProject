@@ -23,7 +23,7 @@ DECLARE_WAIT_QUEUE_HEAD(read_queue);
 DECLARE_WAIT_QUEUE_HEAD(write_queue);
 
 #define IS_EMPTY(minor) (readPos[minor] == writePos[minor])
-#define O_PACKET = 0x80000000;
+#define O_PACKET 0x80000000;
 
 
 /* The operations */
@@ -56,7 +56,7 @@ static int dharma_release(struct inode *inode, struct file *file)
     return 0;
 }
 
-static ssize_t dharma_write(struct file *filp, const char *buff, size_t len, loff_t *off){
+static ssize_t dharma_write(struct file *filp, const char *buff, size_t count, loff_t *off){
     /*  Two valid alternatives for implementing the write; if there isn't enough space to write all the data: 
      *      1) I don't want to write only a part of the message
                 => FAIL in non-blocking mode, put in a wait-queue in blocking mode
@@ -108,7 +108,7 @@ static ssize_t dharma_write(struct file *filp, const char *buff, size_t len, lof
         res = -EINVAL; // if copy_from_user didn't return 0, there was a problem in the parameters. 
     }
     
-    wake_up_interruptible(read_queue);
+    wake_up_interruptible(&read_queue);
 
     // If the copy_from_user succeeded (i.e., it returned 0), we need to update the write file pointer.
     if( res == 0 ){
@@ -180,7 +180,7 @@ static ssize_t dharma_read_packet(struct file *filp, char *out_buffer, size_t si
 	}
 	//Note: if we arrive here, everything was read. OK
 	
-	wake_up_interruptible(write_queue);
+	wake_up_interruptible(&write_queue);
 	
 	//update readPos
 	readPos[minor]+=residual;
@@ -328,7 +328,7 @@ static ssize_t dharma_read_stream(struct file *filp, char *out_buffer, size_t si
 	//Note: if we arrive here, everything was read. OK
 	
 	
-	wake_up_interruptible(write_queue);
+	wake_up_interruptible(&write_queue);
 	
 	readPos[minor] += bytesToRead;
 
@@ -340,15 +340,16 @@ static ssize_t dharma_read_stream(struct file *filp, char *out_buffer, size_t si
 }
 
 static long dharma_ioctl(struct file *filp, unsigned int cmd, unsigned long arg) {
-    
+    /*filp->private_data is of type void *. To do operations & and | I must cast it 
+     * to int */
     switch(cmd){
         case DHARMA_PACKET_MODE :
             printk("Packet mode now is active\n");
-            filp->private_data |= O_PACKET;
+            *((int *) filp->private_data) |= O_PACKET;
             break;
         case DHARMA_STREAM_MODE :
             printk("Stream mode now is active\n");
-            filp->private_data &= ~O_PACKET;
+            *((int *) filp->private_data) &= ~O_PACKET;
             break;
         case DHARMA_SET_BLOCKING :
             printk("Blocking mode now is active\n");
