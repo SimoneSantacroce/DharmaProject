@@ -156,19 +156,26 @@ static ssize_t dharma_read_packet(struct file *filp, char *out_buffer, size_t si
 
     // acquire spinlock
     spin_lock(&(buffer_lock[minor]));
+    
+    printk("Before buffer check\n");
 
     while (IS_EMPTY(minor)) {
+		printk("Buffer is empty\n");
         // release spinlock
         spin_unlock(&(buffer_lock[minor]));
         //if op is non blocking. EGAIN:resource is temporarily unavailable
-        if (filp->f_flags & O_NONBLOCK)
+        printk("Should we block?\n");
+        if (filp->f_flags & O_NONBLOCK) {
+			printk("No blocking\n");
             return -EAGAIN;
+		}
             
         /* insert into wait queue. wait_event_interruptible returns ERESTARTSYS
          * if it is interrupted by a signal. The system call can be re-executed if there is some
          * interruption*/
          /*questo è quello che ho capito da qui:
           * http://stackoverflow.com/questions/9576604/what-does-erestartsys-used-while-writing-linux-driver */
+        printk("Sleeping on the read queue\n");
         if(wait_event_interruptible(read_queue, !IS_EMPTY(minor)))
             return -ERESTARTSYS;
         // otherwise loop, but first re-acquire spinlock
@@ -177,6 +184,8 @@ static ssize_t dharma_read_packet(struct file *filp, char *out_buffer, size_t si
         // or if the previous guy consumed everything
     }
     // if we get here, then data is in the buffer AND we have exclusive access to it: we're ready to go.
+    
+    printk("After buffer check\n");
     
     int residual = PACKET_SIZE-readPos_mod[minor]%PACKET_SIZE; // how many bytes we have to read effectively
 
@@ -282,17 +291,24 @@ static ssize_t dharma_read_stream(struct file *filp, char *out_buffer, size_t si
     
     // acquire spinlock
     spin_lock(&(buffer_lock[minor]));
+    
+    printk("Before buffer check\n");
 
     while (IS_EMPTY(minor)) {
+		printk("Buffer is empty\n");
         // release spinlock
         spin_unlock(&(buffer_lock[minor]));
         //if op is non blocking
-        if (filp->f_flags & O_NONBLOCK)
+        printk("Should we block?\n");
+        if (filp->f_flags & O_NONBLOCK) {
+			printk("No blocking\n");
             // different choice with respect to the read_packet case, because:
             // return -1 represents an error, instead I think that in this case
             // we have to return "no bytes read" = "0 bytes read"
             return 0;
+		}
         
+        printk("Sleeping on read queue\n");
         if(wait_event_interruptible(read_queue, !IS_EMPTY(minor)))
             return -ERESTARTSYS;
         // otherwise loop, but first re-acquire spinlock
@@ -301,6 +317,8 @@ static ssize_t dharma_read_stream(struct file *filp, char *out_buffer, size_t si
         // or if the previous guy consumed everything
     }
     // if we get here, then data is in the buffer AND we have exclusive access to it: we're ready to go.
+    
+    printk("After buffer check\n");
 
     //return value
     int res = 0;
