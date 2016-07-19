@@ -8,7 +8,7 @@
 
 #include "dharma_ioctl.h"
 
-void get_read_mode(int fd)
+/*void get_read_mode(int fd)
 {
 	int res;
 	if (ioctl(fd, DHARMA_GET_READ_MODE, &res) == -1)
@@ -19,19 +19,34 @@ void get_read_mode(int fd)
 	{
 		printf("Read mode : %d\n", res);
 	}
-}
+}*/
 
 void set_read_mode(int fd , int argv)
 {
-	int res = argv;
-
-	if (ioctl(fd, DHARMA_SET_READ_MODE, &res) == -1)
-	{
-		perror("dharma ioctl set read mode\n");
+	int res;
+	if(argv==DHARMA_PACKET_MODE){
+		if(ioctl(fd, DHARMA_SET_PACKET_MODE, &res) == -1)
+		{
+			perror("dharma ioctl set read mode\n");
+		}
+		else
+		{
+			printf("Read mode set to: %d\n", res);
+		}
 	}
-	else
-	{
-		printf("Read mode set to: %d\n", res);
+	else if (argv==DHARMA_STREAM_MODE){
+		if(ioctl(fd, DHARMA_SET_STREAM_MODE, &res) == -1)
+		{
+			perror("dharma ioctl set read mode\n");
+		}
+		else
+		{
+			printf("Read mode set to: %d\n", res);
+		}
+	}
+	
+	else {
+		printf("Invalid argument");
 	}
 }
 
