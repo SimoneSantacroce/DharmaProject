@@ -126,13 +126,6 @@ static ssize_t dharma_write(struct file *filp, const char *buff, size_t count, l
     return count;
 }
 
-static ssize_t dharma_read(struct file *filp, char *out_buffer, size_t size, loff_t *offset) {
-    // should we check if file is open/valid?
-
-    //solo per compilare
-    return 0;
-}
-
 static ssize_t dharma_read_packet(struct file *filp, char *out_buffer, size_t size, loff_t *offset) {
 
 	int minor=iminor(filp->f_path.dentry->d_inode);
@@ -343,6 +336,12 @@ static ssize_t dharma_read_stream(struct file *filp, char *out_buffer, size_t si
 	readPos_mod[minor] = readPos[minor] % BUFFER_SIZE;
 
 	return bytesToRead;
+}
+
+static ssize_t dharma_read(struct file *filp, char *out_buffer, size_t size, loff_t *offset) {
+    if ((unsigned long)filp->private_data & O_PACKET)
+		return dharma_read_packet(filp, out_buffer, size, offset);
+    return dharma_read_stream(filp, out_buffer, size, offset);
 }
 
 static long dharma_ioctl(struct file *filp, unsigned int cmd, unsigned long arg) {

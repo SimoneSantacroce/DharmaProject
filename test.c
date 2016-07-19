@@ -22,7 +22,7 @@ int main(void)
     if(read(filedesc, data, 128) < 0)
 		printf("An error occurred in the read.\n");
 		
-	printf("Read data: %s\n", data);
+	printf("Read data:\n%s", data);
  
     return 0;
 }
