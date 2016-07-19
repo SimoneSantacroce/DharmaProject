@@ -26,6 +26,13 @@
 #define BUFFER_SIZE 20
 #define PACKET_SIZE 5
 
+/* IOCTL related macros */
+#define DHARMA_MAJOR 			250
+#define DHARMA_SET_PACKET_MODE 		_IO(DHARMA_MAJOR, 0)
+#define DHARMA_SET_STREAM_MODE 		_IO(DHARMA_MAJOR, 1)
+#define DHARMA_SET_BLOCKING 		_IO(DHARMA_MAJOR, 2)
+#define DHARMA_SET_NONBLOCKING 		_IO(DHARMA_MAJOR, 3)
+
 
 static int dharma_open(struct inode *, struct file *);
 static int dharma_release(struct inode *, struct file *);
