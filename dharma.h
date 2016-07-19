@@ -19,15 +19,13 @@
 #include <asm/uaccess.h>
 #include <asm/atomic.h>
 
-#include "dharma_ioctl.h"
-
 #define DEVICE_NAME "dharma"
 #define DEVICE_MAX_NUMBER 256
 #define BUFFER_SIZE 20
 #define PACKET_SIZE 5
 
 /* IOCTL related macros */
-#define DHARMA_MAJOR 			250
+#define DHARMA_MAJOR 				250
 #define DHARMA_SET_PACKET_MODE 		_IO(DHARMA_MAJOR, 0)
 #define DHARMA_SET_STREAM_MODE 		_IO(DHARMA_MAJOR, 1)
 #define DHARMA_SET_BLOCKING 		_IO(DHARMA_MAJOR, 2)

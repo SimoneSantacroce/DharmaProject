@@ -2,7 +2,6 @@
  * Dharma main module
  */
 #include "dharma.h"
-#include "dharma_ioctl.h"
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Benjamin Linux");
@@ -14,6 +13,7 @@ spinlock_t buffer_lock[DEVICE_MAX_NUMBER];
 
 /*Pos_mod is the position mod BUFFER_SIZE, Pos is without mod, used to check that 
  read is always less than write */
+ /* these are all 0-initialized upon module mounting */
 int readPos_mod[DEVICE_MAX_NUMBER];
 int readPos[DEVICE_MAX_NUMBER];
 int writePos_mod[DEVICE_MAX_NUMBER];
@@ -23,7 +23,7 @@ DECLARE_WAIT_QUEUE_HEAD(read_queue);
 DECLARE_WAIT_QUEUE_HEAD(write_queue);
 
 #define IS_EMPTY(minor) (readPos[minor] == writePos[minor])
-#define O_PACKET 0x80000000;
+#define O_PACKET 0x80000000
 
 
 /* The operations */
@@ -33,19 +33,11 @@ static int dharma_open(struct inode *inode, struct file *file)
     int minor;
     try_module_get(THIS_MODULE);
 
-    // return the minor number
-    minor = iminor(file->f_path.dentry->d_inode);
+    minor = iminor(inode);
+    
     if (minor < DEVICE_MAX_NUMBER && minor >= 0) {
-        minorArray[minor] = kmalloc(BUFFER_SIZE, GFP_KERNEL);
-        readPos[minor]      = 0;
-        readPos_mod[minor]  = 0;
-        writePos[minor]     = 0;
-        writePos_mod[minor] = 0;
-        
-        //initialize private data. will be needed to set packet or stream mode
-        //file->private_data=kmalloc(sizeof(long), GFP_KERNEL);
-        file->private_data=0;
-        //*((long *) file->private_data)=0;
+		if (minorArray[minor] == NULL)
+			minorArray[minor] = kmalloc(BUFFER_SIZE, GFP_KERNEL);
         return 0;
     }
     else {
