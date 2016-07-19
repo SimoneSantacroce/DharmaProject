@@ -1,6 +1,21 @@
 /**
  * Dharma main module
  */
+#include <linux/init.h>
+#include <linux/module.h>
+#include <linux/kernel.h>
+#include <linux/slab.h>
+#include <linux/errno.h>
+#include <linux/types.h>
+#include <linux/fs.h>
+#include <linux/proc_fs.h>
+#include <linux/fcntl.h>
+#include <linux/spinlock.h>
+#include <linux/wait.h>
+#include <linux/sched.h>
+#include <asm/uaccess.h>
+#include <asm/atomic.h>
+ 
 #include "dharma.h"
 
 MODULE_LICENSE("GPL");
@@ -378,6 +393,16 @@ static long dharma_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
     }
     return 0;
 }
+
+// Module declarations
+
+struct file_operations fops = {
+	.read			= dharma_read,
+	.write			= dharma_write,
+	.open			= dharma_open,
+	.release		= dharma_release,
+	.unlocked_ioctl	= dharma_ioctl
+};
 
 int init_module(void){
 
