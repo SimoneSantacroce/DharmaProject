@@ -81,12 +81,17 @@ static ssize_t dharma_write(struct file *filp, const char *buff, size_t count, l
 
     // check if there's sufficient space to perform the write
     while (readPos[minor]+BUFFER_SIZE < writePos[minor]+count) {
+		printk("Not enough space available\n");
         //release the spinlock for writing
         spin_unlock(&(buffer_lock[minor]));
         //op mode is NON BLOCKING
-        if (filp->f_flags & O_NONBLOCK)
-                return -EAGAIN; //no data can be written, the buffer is full
+        printk("Should we block?\n");
+        if (filp->f_flags & O_NONBLOCK) {
+			printk("No blocking\n");
+			return -EAGAIN; //no data can be written, the buffer is full
+		}
         //else op mode is BLOCKING
+        printk("Yep. Sleeping on the write queue\n");
         if (wait_event_interruptible(write_queue, readPos[minor]+BUFFER_SIZE >= writePos[minor]+count))
                 return -ERESTARTSYS; //-ERESTARTSYS is returned iff the thread is woken up by a signal
         // otherwise loop, but first re-acquire spinlock

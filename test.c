@@ -23,6 +23,8 @@ int main(void)
 		printf("An error occurred in the read.\n");
 		
 	printf("Read data:\n%s", data);
+	
+	close(filedesc);
  
     return 0;
 }
