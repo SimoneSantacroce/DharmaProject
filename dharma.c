@@ -345,34 +345,24 @@ static ssize_t dharma_read_stream(struct file *filp, char *out_buffer, size_t si
 }
 
 static long dharma_ioctl(struct file *filp, unsigned int cmd, unsigned long arg) {
-    long op;
-    /*filp->private_data is of type void *. To do operations & and | I must cast it 
-     * to int */
+	int minor = iminor(filp->f_path.dentry->d_inode);
     switch(cmd){
-		case DHARMA_SET_PACKET_MODE :
-            printk("Packet mode now is active\n");
-            //*((long *) filp->private_data) |= O_PACKET;
-            op=filp->private_data;
-            filp->private_data=(long) op | O_PACKET;
-            printk("private data is %ld\n", (long) filp->private_data);
+	case DHARMA_SET_PACKET_MODE :
+            printk("Packet mode now is active on dharma-device %d\n", minor);
+            filp->private_data = (void *) ((unsigned long)filp->private_data | O_PACKET);
             break;
         case DHARMA_SET_STREAM_MODE :
-            printk("Stream mode now is active\n");
-            //*((long *) filp->private_data) &= ~O_PACKET;
-            op=filp->private_data;
-            filp->private_data=(long) op & ~O_PACKET;
-            printk("private data is %ld\n", (long ) filp->private_data);
+            printk("Stream mode now is active on dharma-device %d\n", minor);
+            filp->private_data = (void *) ((unsigned long)filp->private_data & ~O_PACKET);
             break;
         
         case DHARMA_SET_BLOCKING :
-            printk("Blocking mode now is active\n");
+            printk("Blocking mode now is active on dharma-device %d\n", minor);
             filp->f_flags &= ~O_NONBLOCK;
-            printk("flag is %d\n", filp->f_flags);
             break;
         case DHARMA_SET_NONBLOCKING :
-            printk("Non blocking mode now is active\n");
+            printk("Non blocking mode now is active on dharma-device %d\n", minor);
             filp->f_flags |= O_NONBLOCK;
-            printk("flag data is %d\n", filp->f_flags);
             break;
         default :
             return -EINVAL; // invalid argument
