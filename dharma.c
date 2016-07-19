@@ -151,6 +151,9 @@ static ssize_t dharma_read_packet(struct file *filp, char *out_buffer, size_t si
     int minor=iminor(filp->f_path.dentry->d_inode);
     int res = 0;
 
+    printk("Read-Packet was called on dharma-device %d\n", minor);
+
+
     // acquire spinlock
     spin_lock(&(buffer_lock[minor]));
 
@@ -273,6 +276,9 @@ static ssize_t dharma_read_packet(struct file *filp, char *out_buffer, size_t si
 static ssize_t dharma_read_stream(struct file *filp, char *out_buffer, size_t size, loff_t *offset) {
 
     int minor=iminor(filp->f_path.dentry->d_inode);
+
+    printk("Read-Stream was called on dharma-device %d\n", minor);    
+
     
     // acquire spinlock
     spin_lock(&(buffer_lock[minor]));
