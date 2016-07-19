@@ -113,13 +113,12 @@ static ssize_t dharma_write(struct file *filp, const char *buff, size_t count, l
     if(res != 0){
         res = -EINVAL; // if copy_from_user didn't return 0, there was a problem in the parameters. 
     }
-    
-    wake_up_interruptible(&read_queue);
 
     // If the copy_from_user succeeded (i.e., it returned 0), we need to update the write file pointer.
     if( res == 0 ){
         writePos[minor] += count;
         writePos_mod[minor] = writePos[minor] % BUFFER_SIZE;
+        wake_up_interruptible(&read_queue); // also wake up reading processes
     }
 
     spin_unlock(&(buffer_lock[minor]));
