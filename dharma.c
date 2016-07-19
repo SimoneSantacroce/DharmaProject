@@ -43,8 +43,9 @@ static int dharma_open(struct inode *inode, struct file *file)
         writePos_mod[minor] = 0;
         
         //initialize private data. will be needed to set packet or stream mode
-        file->private_data=kmalloc(sizeof(long), GFP_KERNEL);
-        *((long *) file->private_data)=0;
+        //file->private_data=kmalloc(sizeof(long), GFP_KERNEL);
+        file->private_data=0;
+        //*((long *) file->private_data)=0;
         return 0;
     }
     else {
@@ -345,18 +346,23 @@ static ssize_t dharma_read_stream(struct file *filp, char *out_buffer, size_t si
 }
 
 static long dharma_ioctl(struct file *filp, unsigned int cmd, unsigned long arg) {
+    long op;
     /*filp->private_data is of type void *. To do operations & and | I must cast it 
      * to int */
     switch(cmd){
 		case DHARMA_SET_PACKET_MODE :
             printk("Packet mode now is active\n");
-            *((long *) filp->private_data) |= O_PACKET;
-            printk("private data is %ld\n", *((long *) filp->private_data));
+            //*((long *) filp->private_data) |= O_PACKET;
+            op=filp->private_data;
+            filp->private_data=(long) op | O_PACKET;
+            printk("private data is %ld\n", (long) filp->private_data);
             break;
         case DHARMA_SET_STREAM_MODE :
             printk("Stream mode now is active\n");
-            *((long *) filp->private_data) &= ~O_PACKET;
-            printk("private data is %ld\n", *((long *) filp->private_data));
+            //*((long *) filp->private_data) &= ~O_PACKET;
+            op=filp->private_data;
+            filp->private_data=(long) op & ~O_PACKET;
+            printk("private data is %ld\n", (long ) filp->private_data);
             break;
         
         case DHARMA_SET_BLOCKING :
