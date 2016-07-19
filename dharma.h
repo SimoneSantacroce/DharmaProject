@@ -1,6 +1,7 @@
 /*
 * The darma header
 */
+#include <linux/ioctl.h>
 
 #define EXPORT_SYMTAB
 

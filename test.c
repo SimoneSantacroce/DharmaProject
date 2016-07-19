@@ -48,13 +48,26 @@ int main(void)
 		printf("An error occurred in the read.\n");
 		
 	printf("Read data:\n%s", data);
-	
+
+	/* TEST BY ROB */
+	printf("Testing now blocking mode on read stream...\n");
+	if( ioctl(filedesc, DHARMA_SET_NONBLOCKING, 0) == 0)
+		printf("Set NON BLOCKING mode\n");
+
+	int res;
+	res = read(filedesc, data, 128);
+	if( res < 0 )
+		printf("An error occurred in the read.");
+	if( res == 0 )
+		printf("res is equal to 0 => (probably) we called read in non blocking mode.");
+
+	/* TEST BY FABIO
 	printf("Testing now blocking mode on read stream...\n");
 	if (fd_set_blocking(filedesc, 0))
 		printf("Set NON BLOCKING mode\n");
 	if(read(filedesc, data, 128) < 0)
 		printf("An error occurred in the read.\n");
-	
+	*/
 	close(filedesc);
  
     return 0;
