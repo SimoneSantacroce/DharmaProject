@@ -21,8 +21,8 @@
 
 #define DEVICE_NAME "dharma"
 #define DEVICE_MAX_NUMBER 256
-#define BUFFER_SIZE 20
-#define PACKET_SIZE 5
+#define BUFFER_SIZE 1024
+#define PACKET_SIZE 64
 
 /* IOCTL related macros */
 #define DHARMA_MAJOR 				250

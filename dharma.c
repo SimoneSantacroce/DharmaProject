@@ -38,6 +38,7 @@ static int dharma_open(struct inode *inode, struct file *file)
     if (minor < DEVICE_MAX_NUMBER && minor >= 0) {
 		if (minorArray[minor] == NULL)
 			minorArray[minor] = kmalloc(BUFFER_SIZE, GFP_KERNEL);
+			// Note: default is stream mode, blocking
         return 0;
     }
     else {
@@ -62,8 +63,11 @@ static ssize_t dharma_write(struct file *filp, const char *buff, size_t count, l
                 => I will neither fail nor put the process into a wait queue,
                 but I'll simply write what I can, and return "success"
      */
+
     int minor=iminor(filp->f_path.dentry->d_inode);
     int res = 0;
+    
+    printk("Write was called on dharma-device %d\n", minor);
 
     // acquire spinlock
     spin_lock(&(buffer_lock[minor]));
@@ -72,6 +76,8 @@ static ssize_t dharma_write(struct file *filp, const char *buff, size_t count, l
     if (count > BUFFER_SIZE) {
         return -EINVAL;
     }
+    
+    printk("Before space check\n");
 
     // check if there's sufficient space to perform the write
     while (readPos[minor]+BUFFER_SIZE < writePos[minor]+count) {
@@ -90,6 +96,8 @@ static ssize_t dharma_write(struct file *filp, const char *buff, size_t count, l
     /* If we reach this point, we have exclusive access to the buffer
      * AND there is sufficient room into the buffer -> we can move on
      */
+     
+	printk("After space check\n");
     
     // Case 1) one copy_from_user is required
     if(count <= (BUFFER_SIZE - writePos_mod[minor])){
@@ -114,7 +122,8 @@ static ssize_t dharma_write(struct file *filp, const char *buff, size_t count, l
     }
 
     spin_unlock(&(buffer_lock[minor]));
-    return res;
+    printk("Leaving the write\n");
+    return count;
 }
 
 static ssize_t dharma_read(struct file *filp, char *out_buffer, size_t size, loff_t *offset) {
@@ -369,8 +378,8 @@ int init_module(void){
     major = register_chrdev(0, DEVICE_NAME, &fops);
 
     if (major < 0) {
-      printk("Registering dharma device failed\n");
-      return major;
+		printk("Registering dharma device failed\n");
+		return major;
     }
 
     printk(KERN_INFO "Dharma device registered, it is assigned major number %d\n", major);
