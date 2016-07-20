@@ -37,7 +37,7 @@ int main(void)
 	printf("Testing write and stream, non-blocking read...\n");
 	
 	int wrote = 0;
-    if ((wrote = write(filedesc, "This will be output to dharma0\n", 31)) != 31) {
+    if ((wrote = write(filedesc, "This will be output to dharma0\n", 32)) != 32) {
         printf("There was an error writing to dharma0; wrote: %d\n", wrote);
         return -1;
     }
@@ -76,7 +76,7 @@ int main(void)
 	printf("Read data:\n%s\n", data);
 	
 	int res3;
-	res3 = read(filedesc, (char *)(&data[res2]), 128);
+	res3 = read(filedesc, data, 128);
 	if( res3 < 0 )
 		printf("An error occurred in the read.");
 	if( res3 == 0 )
@@ -85,7 +85,7 @@ int main(void)
 	printf("Read data:\n%s\n", data);
 	
 	int res4;
-	res4 = read(filedesc, (char *)(&data[res3+res2]), 128);
+	res4 = read(filedesc, data, 128);
 	if( res4 < 0 )
 		printf("An error occurred in the read.");
 	if( res4 == 0 )
