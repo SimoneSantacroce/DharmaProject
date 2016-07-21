@@ -130,7 +130,6 @@ int main(void)
 		printf("An error occurred in the read.\n");
 	*/
 	
-	printf("%c %c", data[0], data[1]);
 	close(filedesc);
  
     return 0;
