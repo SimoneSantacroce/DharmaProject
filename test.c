@@ -104,7 +104,7 @@ int main(void)
 	printf("Read data:\n%s\n", data);
 	
 	int wrote2 = 0;
-    if ((wrote2 = write(filedesc, "and it will be", 14)) != 14) {
+    if ((wrote2 = write(filedesc, "and it does ok", 14)) != 14) {
         printf("There was an error writing to dharma0; wrote: %d\n", wrote2);
         return -1;
     }
@@ -130,7 +130,7 @@ int main(void)
 		printf("An error occurred in the read.\n");
 	*/
 	
-	
+	printf("%c %c", data[0], data[1]);
 	close(filedesc);
  
     return 0;
