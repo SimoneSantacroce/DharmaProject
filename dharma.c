@@ -132,6 +132,7 @@ static ssize_t dharma_write(struct file *filp, const char *buff, size_t count, l
         printk("buffer address at first copy is %d, at second is %d\n", buff, buff+partial_count);
         res  = copy_from_user((char*)(&(minorArray[minor][writePos_mod[minor]])), buff, partial_count);
         res += copy_from_user((char*)(&(minorArray[minor][0])), buff+partial_count, count - partial_count);
+        
     }
 
     if(res != 0){
@@ -367,7 +368,7 @@ static ssize_t dharma_read_stream(struct file *filp, char *out_buffer, size_t si
 
         //we compute the number of bytes to read at the begin of the buffer
         int leftover = bytesToRead - ( BUFFER_SIZE - readPos_mod[minor] );
-        res += copy_to_user(out_buffer, (char *)(&(minorArray[minor][0])), leftover );
+        res += copy_to_user(out_buffer+( BUFFER_SIZE - readPos_mod[minor] ), (char *)(&(minorArray[minor][0])), leftover );
     }
     
     //if res>0, it means an unexpected error happened, so we abort the operation (=not update pointers)
