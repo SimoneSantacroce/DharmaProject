@@ -37,7 +37,7 @@ int main(void)
 	printf("Testing write and stream, non-blocking read...\n");
 	
 	int wrote = 0;
-    if ((wrote = write(filedesc, "This will be output to dharma0\n", 32)) != 32) {
+    if ((wrote = write(filedesc, "This will be output to dharma0\n", 31)) != 31) {
         printf("There was an error writing to dharma0; wrote: %d\n", wrote);
         return -1;
     }
@@ -62,7 +62,8 @@ int main(void)
 		printf("res is equal to 0 => (probably) we called read in non blocking mode.");*/
 
 	/* TEST BY SARA */
-	printf("Testing now blocking mode on read packet...\n");
+ 
+	printf("Testing now non blocking mode on read packet...\n");
 	if( ioctl(filedesc, DHARMA_SET_PACKET_MODE, 0) == 0)
 		printf("Set PACKET mode\n");
 		
@@ -75,8 +76,13 @@ int main(void)
 	
 	printf("Read data:\n%s\n", data);
 	
+	printf("Testing now non blocking mode on read stream...\n");
+	if( ioctl(filedesc, DHARMA_SET_STREAM_MODE, 0) == 0)
+		printf("Set STREAM mode\n");
+		
+		
 	int res3;
-	res3 = read(filedesc, data, 128);
+	res3 = read(filedesc, data, 3);
 	if( res3 < 0 )
 		printf("An error occurred in the read.");
 	if( res3 == 0 )
@@ -84,6 +90,10 @@ int main(void)
 	
 	printf("Read data:\n%s\n", data);
 	
+	printf("Testing now non blocking mode on read packet...\n");
+	if( ioctl(filedesc, DHARMA_SET_PACKET_MODE, 0) == 0)
+		printf("Set PACKET mode\n");
+		
 	int res4;
 	res4 = read(filedesc, data, 128);
 	if( res4 < 0 )
@@ -92,6 +102,26 @@ int main(void)
 		printf("res is equal to 0 => (probably) we called read in non blocking mode.");
 	
 	printf("Read data:\n%s\n", data);
+	
+	int wrote2 = 0;
+    if ((wrote2 = write(filedesc, "and it will be", 14)) != 14) {
+        printf("There was an error writing to dharma0; wrote: %d\n", wrote2);
+        return -1;
+    }
+    
+    printf("Testing now non blocking mode on read stream...\n");
+	if( ioctl(filedesc, DHARMA_SET_STREAM_MODE, 0) == 0)
+		printf("Set STREAM mode\n");
+		
+    int res5;
+	res5 = read(filedesc, data, 42);
+	if( res5 < 0 )
+		printf("An error occurred in the read.");
+	if( res5 == 0 )
+		printf("res is equal to 0 => (probably) we called read in non blocking mode.");
+	
+	printf("Read data:\n%s\n", data);
+	
 	/* TEST BY FABIO
 	printf("Testing now blocking mode on read stream...\n");
 	if (fd_set_blocking(filedesc, 0))
@@ -99,6 +129,8 @@ int main(void)
 	if(read(filedesc, data, 128) < 0)
 		printf("An error occurred in the read.\n");
 	*/
+	
+	
 	close(filedesc);
  
     return 0;

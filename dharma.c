@@ -46,11 +46,12 @@ DECLARE_WAIT_QUEUE_HEAD(write_queue);
 
 static int dharma_open(struct inode *inode, struct file *file)
 {
+	printk(KERN_INFO "open called\n");
     int minor;
     try_module_get(THIS_MODULE);
 
     minor = iminor(inode);
-    
+    printk(KERN_INFO "minor is %d\n", minor);
     if (minor < DEVICE_MAX_NUMBER && minor >= 0) {
         if (minorArray[minor] == NULL)
             minorArray[minor] = kmalloc(BUFFER_SIZE, GFP_KERNEL);
@@ -58,6 +59,7 @@ static int dharma_open(struct inode *inode, struct file *file)
         return 0;
     }
     else {
+		printk(KERN_INFO "minor not allowed\n");
         return -EBUSY; // Why busy?
     }
 }
@@ -96,7 +98,7 @@ static ssize_t dharma_write(struct file *filp, const char *buff, size_t count, l
     printk("Before space check\n");
 
     // check if there's sufficient space to perform the write
-    while (readPos[minor]+BUFFER_SIZE < writePos[minor]+count) {
+    while (readPos[minor]+BUFFER_SIZE < writePos[minor]+count+1) {
         printk("Not enough space available\n");
         //release the spinlock for writing
         spin_unlock(&(buffer_lock[minor]));
@@ -139,6 +141,7 @@ static ssize_t dharma_write(struct file *filp, const char *buff, size_t count, l
     if( res == 0 ){
         writePos[minor] += count;
         writePos_mod[minor] = writePos[minor] % BUFFER_SIZE;
+        printk("write pos mod is %d\n", writePos_mod[minor]);
         wake_up_interruptible(&read_queue); // also wake up reading processes
     }
 
