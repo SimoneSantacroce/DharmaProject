@@ -98,8 +98,8 @@ static ssize_t dharma_write(struct file *filp, const char *buff, size_t count, l
     printk("Before space check\n");
 
     // check if there's sufficient space to perform the write
-    while (readPos[minor]+BUFFER_SIZE < writePos[minor]+count+1) {
-        printk("Not enough space available\n");
+    while (readPos[minor]+BUFFER_SIZE < writePos[minor]+count) {
+        printk("Not enough space available\n")
         //release the spinlock for writing
         spin_unlock(&(buffer_lock[minor]));
         //op mode is NON BLOCKING
