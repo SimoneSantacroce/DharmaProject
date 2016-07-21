@@ -99,7 +99,7 @@ static ssize_t dharma_write(struct file *filp, const char *buff, size_t count, l
 
     // check if there's sufficient space to perform the write
     while (readPos[minor]+BUFFER_SIZE < writePos[minor]+count) {
-        printk("Not enough space available\n")
+        printk("Not enough space available\n");
         //release the spinlock for writing
         spin_unlock(&(buffer_lock[minor]));
         //op mode is NON BLOCKING
@@ -129,6 +129,7 @@ static ssize_t dharma_write(struct file *filp, const char *buff, size_t count, l
     // Case 2) two copy_from_user are required
     else{
         int partial_count = BUFFER_SIZE-writePos_mod[minor];
+        printk("buffer address at first copy is %d, at second is %d\n", buff, buff+partial_count);
         res  = copy_from_user((char*)(&(minorArray[minor][writePos_mod[minor]])), buff, partial_count);
         res += copy_from_user((char*)(&(minorArray[minor][0])), buff+partial_count, count - partial_count);
     }
