@@ -29,6 +29,10 @@ int main( int argc, char *argv[] )
             if( ioctl(filedesc, DHARMA_SET_PACKET_MODE, 0) == 0)
                 printf("Set PACKET mode\n");
         }
+        else{
+            if( ioctl(filedesc, DHARMA_SET_STREAM_MODE, 0) == 0)
+                printf("Set STREAM mode\n");
+        }
     }
     else {
         printf("Usage: testRead n m, where:\n");
