@@ -46,15 +46,18 @@ int main( int argc, char *argv[] )
         return -1;
     }
  
-	char data[numBytes+1];
- 
+	char data[numBytes];
+	//data[numBytes]='\0';
     int res2;
 	res2 = read(filedesc, data, numBytes);
 	if( res2 < 0 )
 		printf("An error occurred in the read.");
 	
-	printf("Read data:\n%s\n", data);
+	//così si dovrebbe risolvere il problema dei caratteri strani
+	data[res2]='\0';
 	
+	printf("Read data:\n%s\n", data);
+	//printf("%c\n", data[numBytes]);
 	close(filedesc);
  
     return 0;
