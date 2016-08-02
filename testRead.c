@@ -38,7 +38,8 @@ int main( int argc, char *argv[] )
         printf("Usage: testRead n m, where:\n");
         printf("- n is the number of bytes you want to read.\n");
         printf("- m is the read mode: type 'p' for packet and 's' for string.\n");
-        printf("The default values are n = 0 and m = s.\n");
+        printf("Exiting.\n");
+        return 0;
     }
 
     if (filedesc < 0) {
@@ -46,7 +47,7 @@ int main( int argc, char *argv[] )
         return -1;
     }
  
-	char data[numBytes];
+	char data[numBytes+1];
 	//data[numBytes]='\0';
     int res2;
 	res2 = read(filedesc, data, numBytes);
