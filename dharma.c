@@ -217,9 +217,7 @@ static ssize_t dharma_read_packet(struct file *filp, char *out_buffer, size_t si
         return -EINVAL;
     }
     //Note: if we arrive here, everything was read. OK
-    
-    wake_up_interruptible(&write_queue);
-    
+        
     //update readPos
     readPos[minor] += residual;
     /*if I read less than a packet(or its residual), it means that readPos (line before) was updated 
@@ -234,6 +232,9 @@ static ssize_t dharma_read_packet(struct file *filp, char *out_buffer, size_t si
     }
 
     readPos_mod[minor] = readPos[minor] % BUFFER_SIZE;
+
+    // VEDI NOTA DI ROB nella read_stream (LOC 395)
+    wake_up_interruptible(&write_queue);
 
     spin_unlock(&(buffer_lock[minor]));
     return residual;
@@ -294,7 +295,6 @@ static ssize_t dharma_read_stream(struct file *filp, char *out_buffer, size_t si
 
     printk("Read-Stream was called on dharma-device %d\n", minor);    
 
-    
     // acquire spinlock
     spin_lock(&(buffer_lock[minor]));
     
@@ -332,6 +332,7 @@ static ssize_t dharma_read_stream(struct file *filp, char *out_buffer, size_t si
     // how many bytes we can read
     int readableBytes = writePos[minor] - readPos[minor];
 
+    printk("readableBytes = %d\n", readableBytes);
     /*
         In the previous version the operation was: int readableBytes = writePos_mod - readPos_mod
         but in this way, if the write pointer precedes the read pointer (legal case if the writePos > readPos)
@@ -353,12 +354,16 @@ static ssize_t dharma_read_stream(struct file *filp, char *out_buffer, size_t si
         bytesToRead = size;
     }
 
-    if( readPos_mod[minor] + readableBytes < BUFFER_SIZE ){
+    printk("bytesToRead = %d computed.\n", bytesToRead);
+
+    if( readPos_mod[minor] + bytesToRead < BUFFER_SIZE ){
+    	printk("Case 1: one read is needed.\n");
         // before reading, we control whether the amount to be read
         // is contained in the interval between readPos_mod and the end of the buffer
         res = copy_to_user(out_buffer, (char *)(&(minorArray[minor][readPos_mod[minor]])), bytesToRead);
     }
     else{
+    	printk("Case 2: two reads are required.\n");
         // in this case, we need to read the last bytes of the buffer and go back at the begin of the buffer
         // in order to complete the read
 
@@ -380,13 +385,20 @@ static ssize_t dharma_read_stream(struct file *filp, char *out_buffer, size_t si
     
     //Note: if we arrive here, everything was read. OK
     
-    wake_up_interruptible(&write_queue);
     
     readPos[minor] += bytesToRead;
 
     // we update the read module-pointer
     // in this case the write pointer is the same as before
     readPos_mod[minor] = readPos[minor] % BUFFER_SIZE;
+
+    /* NOTA DI ROB: la wake-up, secondo me, dovrebbe stare qui, cioè dopo l'aggiornamento dei puntatori readPos,
+	 *              e non prima, altrimenti c'è il rischio che la coda si svegli e, dato che i puntatori readPos
+	 *              sono rimasti invariati, torni a dormire, anche se ci sarebbe spazio a sufficienza per 
+	 *              svegliare qualcuno.
+	 *              Fatemi sapere che ne pensate.
+	 */
+    wake_up_interruptible(&write_queue);
 
     spin_unlock(&(buffer_lock[minor]));
     return bytesToRead;
