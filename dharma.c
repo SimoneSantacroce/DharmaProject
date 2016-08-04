@@ -87,13 +87,15 @@ static ssize_t dharma_write(struct file *filp, const char *buff, size_t count, l
     
     printk("Write was called on dharma-device %d\n", minor);
 
-    // acquire spinlock
-    spin_lock(&(buffer_lock[minor]));
+    
     
     // fail if the process wants to write data bigger than the buffer size
     if (count > BUFFER_SIZE) {
         return -EINVAL;
     }
+
+    // acquire spinlock
+    spin_lock(&(buffer_lock[minor]));
     
     printk("Before space check\n");
 
