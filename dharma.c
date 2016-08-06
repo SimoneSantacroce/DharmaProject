@@ -210,6 +210,15 @@ static ssize_t dharma_read_packet(struct file *filp, char *out_buffer, size_t si
          even if they are less than a packet*/
         residual = writePos[minor]-readPos[minor];
     }
+
+    /* NOTA DI ROB: prima di chiamare copy_to_user, dobbiamo controllare che il chiamante abbia
+	 * spazio a sufficienza in out_buffer per contenere il pacchetto. Se questo spazio non c'è,
+	 * bisogna ridurre ulteriormente il valore di residual.
+	 */
+	if( residual > size ){
+		residual = size;
+	}
+	 
     res= copy_to_user(out_buffer, (char *)(&(minorArray[minor][readPos_mod[minor]])), residual);
     
     //if res>0, it means an unexpected error happened, so we abort the operation (=not update pointers)
