@@ -367,6 +367,10 @@ static ssize_t dharma_read_stream(struct file *filp, char *out_buffer, size_t si
 
     printk("bytesToRead = %d computed.\n", bytesToRead);
 
+    /* NOTA DI ROB: credo che qui dovrebbe essere '<=', anziché '<'
+     * Vedi caso in cui readPos_mod = 0, BUFFER_SIZE = 40 e bytesToRead = 40:
+     * non ci sarebbe bisogno di fare due copy_to_user (la variabile leftover sarebbe pari a 0)
+     */
     if( readPos_mod[minor] + bytesToRead < BUFFER_SIZE ){
     	printk("Case 1: one read is needed.\n");
         // before reading, we control whether the amount to be read
