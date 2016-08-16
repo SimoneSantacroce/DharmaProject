@@ -1,7 +1,13 @@
+MODULE_NAME ?= dharma
+
 # If KERNELRELEASE is defined, we've been invoked from the kernel build system;
 # we can use its language.
 ifneq ($(KERNELRELEASE),)
-	obj-m := dharma.o
+
+	SRC := src/$(MODULE_NAME).c
+	$(MODULE_NAME)-objs = $(SRC:.c=.o)
+
+	obj-m := $(MODULE_NAME).o
 
 # Otherwise we were called directly from the command line;
 # invoke the kernel build system.
@@ -10,7 +16,7 @@ else
 	KERNELDIR ?= /lib/modules/$(shell uname -r)/build
 	PWD := $(shell pwd)
 
-	MOD_KER_OBJ = dharma.ko
+	MOD_KER_OBJ = $(MODULE_NAME).ko
 
 all:
 	$(MAKE) -C $(KERNELDIR) M=$(PWD) modules
