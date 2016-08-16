@@ -61,7 +61,7 @@ static int dharma_open(struct inode *inode, struct file *file)
     }
     else {
         printk(KERN_INFO "minor not allowed\n");
-        return -EBUSY; // Why busy?
+        return -ENODEV; // No such device
     }
 }
 
@@ -83,7 +83,7 @@ static ssize_t dharma_write(struct file *filp, const char *buff, size_t count, l
                 but I'll simply write what I can, and return "success"
      */
 
-    int minor=iminor(filp->f_path.dentry->d_inode);
+    int minor = iminor(filp->f_path.dentry->d_inode);
     int res = 0;
 
     printk("Write was called on dharma-device %d\n", minor);
@@ -437,7 +437,7 @@ static ssize_t dharma_read(struct file *filp, char *out_buffer, size_t size, lof
 static long dharma_ioctl(struct file *filp, unsigned int cmd, unsigned long arg) {
     int minor = iminor(filp->f_path.dentry->d_inode);
     switch(cmd){
-    case DHARMA_SET_PACKET_MODE :
+        case DHARMA_SET_PACKET_MODE :
             printk("Packet mode now is active on dharma-device %d\n", minor);
             filp->private_data = (void *) ((unsigned long)filp->private_data | O_PACKET);
             break;
