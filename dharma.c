@@ -233,8 +233,7 @@ static ssize_t dharma_read_packet(struct file *filp, char *out_buffer, size_t si
     //Note: if we arrive here, everything was read. OK
 
     //update readPos
-    readPos[minor] += residual;
-    /*if I read less than a packet(or its residual), it means that readPos (line before) was updated
+    /* if I read less than a packet(or its residual), it means that readPos (line before) was updated
      * in a way it does not coincide with the end of the packet, so I must
      * add to readPos the quantity it needs to arrive at the end of the packet, and since writePos
      * too is not placed at the end of the frame, I update it to make it coincide with the new readPos,
@@ -247,10 +246,13 @@ static ssize_t dharma_read_packet(struct file *filp, char *out_buffer, size_t si
      * (dove 'to_end' in precedenza viene settato alla taglia del prossimo pacchetto).
      * In questo modo, entriamo nell'if anche nel caso di cui parlava Sara.   
      */
-    if(residual == writePos[minor] - readPos[minor]){ 
-        readPos[minor] += (to_end-residual);
+    if(residual < to_end){ 
+        readPos[minor] += to_end;
         writePos[minor] = readPos[minor];
         writePos_mod[minor] = writePos[minor] % BUFFER_SIZE;
+    }
+    else{
+  	    readPos[minor] += residual;
     }
 
     readPos_mod[minor] = readPos[minor] % BUFFER_SIZE;
