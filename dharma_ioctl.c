@@ -6,7 +6,8 @@
 #include <string.h>
 #include <sys/ioctl.h>
 
-#include "dharma_ioctl.h"
+//MODIFICA SARA
+#include "dharma.h"
 
 /*void get_read_mode(int fd)
 {
