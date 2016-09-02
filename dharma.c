@@ -161,7 +161,7 @@ static ssize_t dharma_read_packet(struct file *filp, char *out_buffer, size_t si
     int res = 0;
     int residual;
     int to_end;
-
+    int byte_read = 0;
     printk("Read-Packet was called on dharma-device %d\n", minor);
 
 
@@ -178,7 +178,7 @@ static ssize_t dharma_read_packet(struct file *filp, char *out_buffer, size_t si
         printk("Should we block?\n");
         if (filp->f_flags & O_NONBLOCK) {
             printk("No blocking\n");
-            return -EAGAIN;
+            return -EAGAIN; //mettere 0 per evitare @______@ 
         }
 
         /* insert into wait queue. wait_event_interruptible returns ERESTARTSYS
