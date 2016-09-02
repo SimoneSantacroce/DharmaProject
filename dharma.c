@@ -35,6 +35,13 @@ int readPos[DEVICE_MAX_NUMBER];
 int writePos_mod[DEVICE_MAX_NUMBER];
 int writePos[DEVICE_MAX_NUMBER];
 
+/* Fabrizio: L'idea è di utilizzare un array minorSize di "buffer_size"
+ * per tenere traccia della taglia dei buffer per i vari minor.
+ * Ho scelto di farlo atomico per essere più parato... 
+ * ma credo che un semplice int vada bene lo stesso...
+ * minorSize è iniziaizzato a BUFFER_SIZE. */
+atomic_t minorSize[DEVICE_MAX_NUMBER];
+
 DECLARE_WAIT_QUEUE_HEAD(read_queue);
 DECLARE_WAIT_QUEUE_HEAD(write_queue);
 
@@ -56,6 +63,8 @@ static int dharma_open(struct inode *inode, struct file *file)
     if (minor < DEVICE_MAX_NUMBER && minor >= 0) {
         if (minorArray[minor] == NULL)
             minorArray[minor] = kmalloc(BUFFER_SIZE, GFP_KERNEL);
+            // Fabrizio: Inizializzazione minorSize[minor]
+            atomic_set(&(minorSize[minor]), BUFFER_SIZE);
             // Note: default is stream mode, blocking
         return 0;
     }
@@ -458,7 +467,6 @@ static long dharma_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
             printk("Stream mode now is active on dharma-device %d\n", minor);
             filp->private_data = (void *) ((unsigned long)filp->private_data & ~O_PACKET);
             break;
-
         case DHARMA_SET_BLOCKING :
             printk("Blocking mode now is active on dharma-device %d\n", minor);
             filp->f_flags &= ~O_NONBLOCK;
@@ -467,6 +475,27 @@ static long dharma_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
             printk("Non blocking mode now is active on dharma-device %d\n", minor);
             filp->f_flags |= O_NONBLOCK;
             break;
+        case DHARMA_GET_BUFFER_SIZE : // Fabrizio: Case "GET_BUFFER_SIZE"
+			printk("Returning current buffer size for dharma-device %d...\n", minor);
+			int size = atomic_read(&(minorSize[minor]));
+            int res = copy_to_user((int *) arg, &size , sizeof(int));
+            if(res != 0)
+				return -EINVAL; // if copy_from_user didn't return 0, there was a problem in the parameters.
+			printk("Buffer size for dharma-device %d read.\n", minor);
+			break;
+		case DHARMA_SET_BUFFER_SIZE : // Fabrizio: Case "SET_BUFFER_SIZE"
+			printk("Updating current buffer size for dharma-device %d...\n", minor);
+			int size;
+			int res = copy_from_user(&size, (int *) arg, sizeof(int));
+			if(res != 0)
+				return -EINVAL; // if copy_from_user didn't return 0, there was a problem in the parameters.
+			if(size % PACKET_SIZE != 0) // Fabrizio: Nuova size non multipla di packet size!
+				return -EINVAL;
+			if(size > writePos[minor] - readPos[minor]) // Fabrizio: Nuova size non sufficiente.
+				return -EINVAL;
+			atomic_set(&minorSize[minor], size);
+			printk("Buffer size for dharma-device %d updated.\n", minor);
+			break;
         default :
             return -EINVAL; // invalid argument
     }
