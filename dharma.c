@@ -220,12 +220,12 @@ static ssize_t dharma_read_packet(struct file *filp, char *out_buffer, size_t si
      */
     if( residual > size ){
         //residual = size;
-	       res= copy_to_user(out_buffer, (char *)(&(minorArray[minor][readPos_mod[minor]])), size);
-	       byte_read=size;
+	res= copy_to_user(out_buffer, (char *)(&(minorArray[minor][readPos_mod[minor]])), size);
+	byte_read=size;
     }
     else {
         res= copy_to_user(out_buffer, (char *)(&(minorArray[minor][readPos_mod[minor]])), residual);
-	       byte_read=residual;
+	byte_read=residual;
     }
     //if res>0, it means an unexpected error happened, so we abort the operation (=not update pointers)
     if(res!=0){
