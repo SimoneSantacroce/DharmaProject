@@ -478,18 +478,18 @@ static long dharma_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
         case DHARMA_GET_BUFFER_SIZE : // Fabrizio: Case "GET_BUFFER_SIZE"
 			printk("Returning current buffer size for dharma-device %d...\n", minor);
 			int size = atomic_read(&(minorSize[minor]));
-            int res = copy_to_user((int *) arg, &size , sizeof(int));
-            if(res != 0)
+            int res1 = copy_to_user((int *) arg, &size , sizeof(int));
+            if(res1 != 0)
 				return -EINVAL; // if copy_from_user didn't return 0, there was a problem in the parameters.
 			printk("Buffer size for dharma-device %d read.\n", minor);
 			break;
 		case DHARMA_SET_BUFFER_SIZE : // Fabrizio: Case "SET_BUFFER_SIZE"
 			printk("Updating current buffer size for dharma-device %d...\n", minor);
-			int size;
-			int res = copy_from_user(&size, (int *) arg, sizeof(int));
-			if(res != 0)
+			int newsize;
+			int res2 = copy_from_user(&size, (int *) arg, sizeof(int));
+			if(res2 != 0)
 				return -EINVAL; // if copy_from_user didn't return 0, there was a problem in the parameters.
-			if(size % PACKET_SIZE != 0) // Fabrizio: Nuova size non multipla di packet size!
+			if(newsize % PACKET_SIZE != 0) // Fabrizio: Nuova size non multipla di packet size!
 				return -EINVAL;
 				
 			/* MODIFICA SARA */
@@ -497,15 +497,15 @@ static long dharma_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 			 * nel buffer */
 			spin_lock(&(buffer_lock[minor]));
 			
-			if(size < writePos[minor] - readPos[minor]) // Fabrizio: Nuova size non sufficiente.
+			if(newsize < writePos[minor] - readPos[minor]) // Fabrizio: Nuova size non sufficiente.
 				return -EINVAL;
-			int oldsize= minorSize[minor];
-			atomic_set(&minorSize[minor], size);
+			int oldsize= atomic_read(&minorSize[minor]);
+			atomic_set(&minorSize[minor], newsize);
 			printk("Buffer size for dharma-device %d updated.\n", minor);
 			
 			
 			/* alloco un nuovo buffer che sicuramente può contenere la roba non letta*/
-			char * new_buffer=kmalloc(minorSize[minor], GFP_KERNEL);
+			char * new_buffer=kmalloc(newsize, GFP_KERNEL);
 			if(readPos_mod[minor] < writePos_mod[minor]){
 				/* _____rpos*******wpos______  le stelline sono i byte da copiare */
 				strncpy(new_buffer, minorArray[minor]+readPos_mod[minor], writePos_mod[minor]-readPos_mod[minor] );
