@@ -491,10 +491,34 @@ static long dharma_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 				return -EINVAL; // if copy_from_user didn't return 0, there was a problem in the parameters.
 			if(size % PACKET_SIZE != 0) // Fabrizio: Nuova size non multipla di packet size!
 				return -EINVAL;
-			if(size > writePos[minor] - readPos[minor]) // Fabrizio: Nuova size non sufficiente.
+				
+			/* MODIFICA SARA */
+			/* secondo me serve per evitare che read concorrenti modificano i puntatori 
+			 * nel buffer */
+			spin_lock(&(buffer_lock[minor]));
+			
+			if(size < writePos[minor] - readPos[minor]) // Fabrizio: Nuova size non sufficiente.
 				return -EINVAL;
+			int oldsize= minorSize[minor];
 			atomic_set(&minorSize[minor], size);
 			printk("Buffer size for dharma-device %d updated.\n", minor);
+			
+			
+			/* alloco un nuovo buffer che sicuramente può contenere la roba non letta*/
+			char * new_buffer=kmalloc(minorSize[minor], GFP_KERNEL);
+			if(readPos_mod[minor] < writePos_mod[minor]){
+				/* _____rpos*******wpos______  le stelline sono i byte da copiare */
+				strncpy(new_buffer, minorArray[minor]+readPos_mod[minor], writePos_mod[minor]-readPos_mod[minor] );
+			}
+			else if(readPos_mod[minor] > writePos_mod[minor]){
+				/* ******wpos_______rpos******  le stelline sono i byte da copiare */
+				strncpy(new_buffer, minorArray[minor]+readPos_mod[minor], oldsize- readPos_mod[minor] );
+				strncpy(new_buffer +oldsize- readPos_mod[minor], minorArray[minor], writePos_mod[minor] );
+			}
+			kfree(minorArray[minor]);
+			minorArray[minor]=new_buffer;
+			
+			spin_unlock(&(buffer_lock[minor]));
 			break;
         default :
             return -EINVAL; // invalid argument
