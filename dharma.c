@@ -516,8 +516,8 @@ static long dharma_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 				strncpy(new_buffer +oldsize- readPos_mod[minor], minorArray[minor], writePos_mod[minor] );
 			}
 			/* aggiorno i puntatori*/
-			readPos[minor]=0;
 			writePos[minor]=writePos[minor]-readPos[minor];
+			readPos[minor]=0;
 			
 			kfree(minorArray[minor]);
 			minorArray[minor]=new_buffer;
