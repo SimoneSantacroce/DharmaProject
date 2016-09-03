@@ -529,7 +529,7 @@ static long dharma_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 			}
 			/* aggiorno i puntatori*/
 			writePos[minor]=writePos[minor]-readPos[minor];
-			writePos_mod[minor] = writePos % newsize;
+			writePos_mod[minor] = writePos[minor] % newsize;
 			readPos[minor] = readPos_mod[minor] = 0;
 			
 			kfree(minorArray[minor]);
