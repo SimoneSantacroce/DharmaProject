@@ -111,6 +111,11 @@ static ssize_t dharma_write(struct file *filp, const char *buff, size_t count, l
         printk("Not enough space available\n");
         //release the spinlock for writing
         spin_unlock(&(buffer_lock[minor]));
+
+        if (count > buffer_size) {
+            return -EINVAL;
+        } 
+
         //op mode is NON BLOCKING
         printk("Should we block?\n");
         if (filp->f_flags & O_NONBLOCK) {
@@ -119,7 +124,7 @@ static ssize_t dharma_write(struct file *filp, const char *buff, size_t count, l
         }
         //else op mode is BLOCKING
         printk("Yep. Sleeping on the write queue\n");
-        if (wait_event_interruptible(write_queue, readPos[minor]+buffer_size >= writePos[minor]+count))
+        if (wait_event_interruptible(write_queue, readPos[minor]+atomic_read(&minorSize[minor]) >= writePos[minor]+count))
                 return -ERESTARTSYS; //-ERESTARTSYS is returned iff the thread is woken up by a signal
         // otherwise loop, but first re-acquire spinlock
         spin_lock(&(buffer_lock[minor]));
@@ -130,11 +135,13 @@ static ssize_t dharma_write(struct file *filp, const char *buff, size_t count, l
 	 * perchè ho paura si possano verificare problemi relativi alla
 	 * concorrenza (i.e. prima count > buffer_size va bene, poi il processo
 	 * va a dormire e qualcuno cambia la taglia del buffer e poi la condizione
-	 * non vale più)... che dite voi? */
+	 * non vale più)... che dite voi?
 	// fail if the process wants to write data bigger than the buffer size
+    /* NOTA DI ROB: questo controllo è ridondante, perché se il processo supera il ciclo while,
+     * non credo sia possibile che il ramo if possa essere mai eseguito.
     if (count > buffer_size) {
         return -EINVAL;
-    }
+    } */
 
     /* If we reach this point, we have exclusive access to the buffer
      * AND there is sufficient room into the buffer -> we can move on
