@@ -124,7 +124,7 @@ static ssize_t dharma_write(struct file *filp, const char *buff, size_t count, l
         }
         //else op mode is BLOCKING
         printk("Yep. Sleeping on the write queue\n");
-        if (wait_event_interruptible(write_queue, readPos[minor]+atomic_read(&minorSize[minor]) >= writePos[minor]+count))
+        if (wait_event_interruptible(write_queue, (readPos[minor]+atomic_read(&minorSize[minor]) >= writePos[minor]+count) || count > atomic_read(&buffer_sizes[minor]) ))
                 return -ERESTARTSYS; //-ERESTARTSYS is returned iff the thread is woken up by a signal
         // otherwise loop, but first re-acquire spinlock
         spin_lock(&(buffer_lock[minor]));
