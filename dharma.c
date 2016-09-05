@@ -516,8 +516,10 @@ static long dharma_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 			 * nel buffer */
 			spin_lock(&(buffer_lock[minor]));
 			
-			if(newsize < writePos[minor] - readPos[minor]) // Fabrizio: Nuova size non sufficiente.
-				return -EINVAL;
+			if(newsize < writePos[minor] - readPos[minor]){ // Fabrizio: Nuova size non sufficiente.
+                spin_unlock(&(buffer_lock[minor]));
+                return -EINVAL;
+            } 	
 			int oldsize= atomic_read(&minorSize[minor]);
 			atomic_set(&minorSize[minor], newsize);
 			printk("Buffer size for dharma-device %d updated.\n", minor);
