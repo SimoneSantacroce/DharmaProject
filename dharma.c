@@ -544,6 +544,8 @@ static long dharma_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 			kfree(minorArray[minor]);
 			minorArray[minor]=new_buffer;
 			
+			wake_up_interruptible(&write_queue);
+			
 			spin_unlock(&(buffer_lock[minor]));
 			break;
         default :
