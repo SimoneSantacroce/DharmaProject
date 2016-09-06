@@ -1,7 +1,7 @@
 #include <unistd.h>
 #include <stdio.h>
 #include <fcntl.h>
-#include "fifodev.h"
+#include "dharma.h"
 #include <stdlib.h>
 
 
@@ -19,19 +19,19 @@ int main( int argc, char *argv[] )
 {
     int numBytes = 0;
     
-    int filedesc = open("/dev/fifodev0", O_RDWR);
+    int filedesc = open("/dev/dharma0", O_RDWR);
     
     if (filedesc < 0) {
-		printf("There was an error opening fifodev0\n");
+		printf("There was an error opening dharma0\n");
         return -1;
     }
     
     if( argc == 2 ) {
         // Get the new buffer size from cli.
         numBytes = atoi(argv[1]);
-        if( ioctl(filedesc, FIFODEV_SET_BUFFER_SIZE, &numBytes) == 0){
+        if( ioctl(filedesc, DHARMA_SET_BUFFER_SIZE, &numBytes) == 0){
             printf("Set buffer size = %d.\n", numBytes);
-            if( ioctl(filedesc, FIFODEV_GET_BUFFER_SIZE, &numBytes) == 0)
+            if( ioctl(filedesc, DHARMA_GET_BUFFER_SIZE, &numBytes) == 0)
                 printf("New buffer size is %d.\n", numBytes);
         }
     }

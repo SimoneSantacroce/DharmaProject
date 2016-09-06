@@ -1,7 +1,7 @@
 #include <unistd.h>
 #include <stdio.h>
 #include <fcntl.h>
-#include "fifodev.h"
+#include "dharma.h"
 
 /** 
  * Set a file descriptor to blocking or non-blocking mode
@@ -72,10 +72,10 @@ int main(int argc, char *argv[])
         return 0;
     }
     
-    int filedesc = open("/dev/fifodev0", O_RDWR);
+    int filedesc = open("/dev/dharma0", O_RDWR);
  
     if (filedesc < 0) {
-		printf("There was an error opening fifodev0\n");
+		printf("There was an error opening dharma0\n");
         return -1;
     }
  
@@ -83,7 +83,7 @@ int main(int argc, char *argv[])
 	
 	int wrote = 0;
     if ((wrote = write(filedesc, string, numBytes)) != numBytes) {
-        printf("There was an error writing to fifodev0; wrote: %d\n", wrote);
+        printf("There was an error writing to dharma0; wrote: %d\n", wrote);
         return -1;
     }
     
