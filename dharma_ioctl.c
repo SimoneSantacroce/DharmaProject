@@ -64,6 +64,15 @@ void set_blocking_flag(int fd)
 	}
 }
 
+void set_buff_size(int fd, int argv){
+	if (ioctl(fd, SET_BUFF_SIZE, &argv) == -1){
+		perror("set buffer size \n");
+	}
+	else{
+		printf("Trying to change buffer size\n");
+	}
+}
+
 void reset_blocking_flag(int fd)
 {
 	int res;
@@ -79,7 +88,7 @@ void reset_blocking_flag(int fd)
 
 int main(int argc, char const *argv[])
 {
-	if (argc < 3)
+	if (argc < 4)
 		goto help;
 
 	const char * minor = argv[1];
@@ -87,8 +96,10 @@ int main(int argc, char const *argv[])
 	int mode_packet = 0;
 	int blocking = 0;
 	int not_blocking = 0;
+	
+	int buff_size = atoi(argv[2]);
 
-	int n = 2;
+	int n = 3;
 
 	while ( n < argc )
 	{
@@ -150,6 +161,11 @@ int main(int argc, char const *argv[])
 
 	if(not_blocking)
 		reset_blocking_flag(fd);
+		
+	/* set buffer size */
+	if(buff_size!=0 ){
+		set_buff_size(fd, buff_size);
+	}
 
 	return 0;}
 

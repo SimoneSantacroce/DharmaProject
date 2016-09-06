@@ -35,6 +35,13 @@ int readPos[DEVICE_MAX_NUMBER];
 int writePos_mod[DEVICE_MAX_NUMBER];
 int writePos[DEVICE_MAX_NUMBER];
 
+/* Fabrizio: L'idea è di utilizzare un array minorSize di "buffer_size"
+ * per tenere traccia della taglia dei buffer per i vari minor.
+ * Ho scelto di farlo atomico per essere più parato... 
+ * ma credo che un semplice int vada bene lo stesso...
+ * minorSize è iniziaizzato a BUFFER_SIZE. */
+atomic_t minorSize[DEVICE_MAX_NUMBER];
+
 DECLARE_WAIT_QUEUE_HEAD(read_queue);
 DECLARE_WAIT_QUEUE_HEAD(write_queue);
 
@@ -54,9 +61,13 @@ static int dharma_open(struct inode *inode, struct file *file)
     minor = iminor(inode);
     printk(KERN_INFO "minor is %d\n", minor);
     if (minor < DEVICE_MAX_NUMBER && minor >= 0) {
-        if (minorArray[minor] == NULL)
+        if (minorArray[minor] == NULL) {
             minorArray[minor] = kmalloc(BUFFER_SIZE, GFP_KERNEL);
+            // Fabrizio: Inizializzazione minorSize[minor]
+            atomic_set(&(minorSize[minor]), BUFFER_SIZE);
             // Note: default is stream mode, blocking
+		}
+		
         return 0;
     }
     else {
@@ -84,27 +95,27 @@ static ssize_t dharma_write(struct file *filp, const char *buff, size_t count, l
      */
 
     int minor = iminor(filp->f_path.dentry->d_inode);
+    int buffer_size;
     int res = 0;
 
     printk("Write was called on dharma-device %d\n", minor);
-
-
-
-    // fail if the process wants to write data bigger than the buffer size
-    if (count > BUFFER_SIZE) {
-        return -EINVAL;
-    }
 
     // acquire spinlock
     spin_lock(&(buffer_lock[minor]));
 
     printk("Before space check\n");
 
+	buffer_size = atomic_read(&minorSize[minor]);
     // check if there's sufficient space to perform the write
-    while (readPos[minor]+BUFFER_SIZE < writePos[minor]+count) {
+    while (readPos[minor]+buffer_size < writePos[minor]+count) {
         printk("Not enough space available\n");
         //release the spinlock for writing
         spin_unlock(&(buffer_lock[minor]));
+
+        if (count > buffer_size) {
+            return -EINVAL;
+        } 
+
         //op mode is NON BLOCKING
         printk("Should we block?\n");
         if (filp->f_flags & O_NONBLOCK) {
@@ -113,11 +124,24 @@ static ssize_t dharma_write(struct file *filp, const char *buff, size_t count, l
         }
         //else op mode is BLOCKING
         printk("Yep. Sleeping on the write queue\n");
-        if (wait_event_interruptible(write_queue, readPos[minor]+BUFFER_SIZE >= writePos[minor]+count))
+        if (wait_event_interruptible(write_queue, (readPos[minor]+atomic_read(&minorSize[minor]) >= writePos[minor]+count) || count > atomic_read(&minorSize[minor]) ))
                 return -ERESTARTSYS; //-ERESTARTSYS is returned iff the thread is woken up by a signal
         // otherwise loop, but first re-acquire spinlock
         spin_lock(&(buffer_lock[minor]));
+        buffer_size = atomic_read(&minorSize[minor]);
     }
+
+	/* NOTA - Fabrizio: Ho spostato questo controllo più in basso
+	 * perchè ho paura si possano verificare problemi relativi alla
+	 * concorrenza (i.e. prima count > buffer_size va bene, poi il processo
+	 * va a dormire e qualcuno cambia la taglia del buffer e poi la condizione
+	 * non vale più)... che dite voi?
+	// fail if the process wants to write data bigger than the buffer size
+    /* NOTA DI ROB: questo controllo è ridondante, perché se il processo supera il ciclo while,
+     * non credo sia possibile che il ramo if possa essere mai eseguito.
+    if (count > buffer_size) {
+        return -EINVAL;
+    } */
 
     /* If we reach this point, we have exclusive access to the buffer
      * AND there is sufficient room into the buffer -> we can move on
@@ -126,12 +150,12 @@ static ssize_t dharma_write(struct file *filp, const char *buff, size_t count, l
     printk("After space check\n");
 
     // Case 1) one copy_from_user is required
-    if(count <= (BUFFER_SIZE - writePos_mod[minor])){
+    if(count <= (buffer_size - writePos_mod[minor])){
         res = copy_from_user((char*)(&(minorArray[minor][writePos_mod[minor]])), buff, count);
     }
     // Case 2) two copy_from_user are required
     else{
-        int partial_count = BUFFER_SIZE-writePos_mod[minor];
+        int partial_count = buffer_size-writePos_mod[minor];
         printk("buffer address at first copy is %p, at second is %p\n", buff, buff+partial_count);
         res  = copy_from_user((char*)(&(minorArray[minor][writePos_mod[minor]])), buff, partial_count);
         res += copy_from_user((char*)(&(minorArray[minor][0])), buff+partial_count, count - partial_count);
@@ -145,7 +169,7 @@ static ssize_t dharma_write(struct file *filp, const char *buff, size_t count, l
     // If the copy_from_user succeeded (i.e., it returned 0), we need to update the write file pointer.
     if( res == 0 ){
         writePos[minor] += count;
-        writePos_mod[minor] = writePos[minor] % BUFFER_SIZE;
+        writePos_mod[minor] = writePos[minor] % buffer_size;
         printk("write pos mod is %d\n", writePos_mod[minor]);
         wake_up_interruptible(&read_queue); // also wake up reading processes
     }
@@ -162,6 +186,7 @@ static ssize_t dharma_read_packet(struct file *filp, char *out_buffer, size_t si
     int residual;
     int to_end;
     int byte_read = 0;
+    int buffer_size;
     printk("Read-Packet was called on dharma-device %d\n", minor);
 
 
@@ -249,16 +274,17 @@ static ssize_t dharma_read_packet(struct file *filp, char *out_buffer, size_t si
      * (dove 'to_end' in precedenza viene settato alla taglia del prossimo pacchetto).
      * In questo modo, entriamo nell'if anche nel caso di cui parlava Sara.   
      */
+	buffer_size = atomic_read(&minorSize[minor]);
     if(residual < to_end){ 
         readPos[minor] += to_end;
         writePos[minor] = readPos[minor];
-        writePos_mod[minor] = writePos[minor] % BUFFER_SIZE;
+        writePos_mod[minor] = writePos[minor] % buffer_size;
     }
     else{
   	    readPos[minor] += residual;
     }
 
-    readPos_mod[minor] = readPos[minor] % BUFFER_SIZE;
+    readPos_mod[minor] = readPos[minor] % buffer_size;
 
     // VEDI NOTA DI ROB nella read_stream (LOC 395)
     wake_up_interruptible(&write_queue);
@@ -274,7 +300,7 @@ static ssize_t dharma_read_packet(struct file *filp, char *out_buffer, size_t si
         res= copy_to_user(out_buffer, (char *)(&(minorArray[minor][readPos_mod])), residual);
         //update readPos
         readPos+=residual;
-        readPos_mod=readPos%BUFFER_SIZE;
+        readPos_mod=readPos%buffer_size;
         return res;
     }
     else if (size<=residual){
@@ -283,7 +309,7 @@ static ssize_t dharma_read_packet(struct file *filp, char *out_buffer, size_t si
         ret=copy_to_user(out_buffer, (char *)(&(minorArray[minor][readPos_mod])), size);
         //update readPos as if I read the whole packet
         readPos+=residual;
-        readPos_mod=readPos%BUFFER_SIZE;
+        readPos_mod=readPos%buffer_size;
         return ret;
     }
 
@@ -295,7 +321,7 @@ static ssize_t dharma_read_packet(struct file *filp, char *out_buffer, size_t si
     }
 
     //if the remaining bytes to read are more than what there is up to the end of the buffer
-    if(size-residual>BUFFER_SIZE-readPos_mod){
+    if(size-residual>buffer_size-readPos_mod){
         //gestione buffer circolare
     }
     else{
@@ -307,7 +333,7 @@ static ssize_t dharma_read_packet(struct file *filp, char *out_buffer, size_t si
         //update reading position. +1 is here because I discard the residual of bytes of the packet I
         //did not read
         readPos+=((size/PACKET_SIZE)+1)*PACKET_SIZE;
-        readPos_mod=readPos%BUFFER_SIZE;
+        readPos_mod=readPos%buffer_size;
 
         //release spinlock
         spin_unlock(&(buffer_lock[minor]));
@@ -325,6 +351,7 @@ static ssize_t dharma_read_stream(struct file *filp, char *out_buffer, size_t si
     int bytesToRead;
     int readableBytes;
     int leftover;
+    int buffer_size;
 
     printk("Read-Stream was called on dharma-device %d\n", minor);
 
@@ -393,7 +420,8 @@ static ssize_t dharma_read_stream(struct file *filp, char *out_buffer, size_t si
      * Vedi caso in cui readPos_mod = 0, BUFFER_SIZE = 40 e bytesToRead = 40:
      * non ci sarebbe bisogno di fare due copy_to_user (la variabile leftover sarebbe pari a 0)
      */
-    if( readPos_mod[minor] + bytesToRead < BUFFER_SIZE ){
+    buffer_size = atomic_read(&minorSize[minor]);
+    if( readPos_mod[minor] + bytesToRead < buffer_size ){
         printk("Case 1: one read is needed.\n");
         // before reading, we control whether the amount to be read
         // is contained in the interval between readPos_mod and the end of the buffer
@@ -406,11 +434,11 @@ static ssize_t dharma_read_stream(struct file *filp, char *out_buffer, size_t si
 
         // leggiamo gli ultimi bytes disponibili dal buffer
         // plus the leftover (which consists of the initial part of the buffer)
-        res = copy_to_user(out_buffer, (char *)(&(minorArray[minor][readPos_mod[minor]])), BUFFER_SIZE - readPos_mod[minor] );
+        res = copy_to_user(out_buffer, (char *)(&(minorArray[minor][readPos_mod[minor]])), buffer_size - readPos_mod[minor] );
 
         //we compute the number of bytes to read at the begin of the buffer
-        leftover = bytesToRead - ( BUFFER_SIZE - readPos_mod[minor] );
-        res += copy_to_user(out_buffer+( BUFFER_SIZE - readPos_mod[minor] ), (char *)(&(minorArray[minor][0])), leftover );
+        leftover = bytesToRead - ( buffer_size - readPos_mod[minor] );
+        res += copy_to_user(out_buffer+( buffer_size - readPos_mod[minor] ), (char *)(&(minorArray[minor][0])), leftover );
     }
 
     //if res>0, it means an unexpected error happened, so we abort the operation (=not update pointers)
@@ -427,7 +455,7 @@ static ssize_t dharma_read_stream(struct file *filp, char *out_buffer, size_t si
 
     // we update the read module-pointer
     // in this case the write pointer is the same as before
-    readPos_mod[minor] = readPos[minor] % BUFFER_SIZE;
+    readPos_mod[minor] = readPos[minor] % buffer_size;
 
     /* NOTA DI ROB: la wake-up, secondo me, dovrebbe stare qui, cioè dopo l'aggiornamento dei puntatori readPos,
      *              e non prima, altrimenti c'è il rischio che la coda si svegli e, dato che i puntatori readPos
@@ -458,7 +486,6 @@ static long dharma_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
             printk("Stream mode now is active on dharma-device %d\n", minor);
             filp->private_data = (void *) ((unsigned long)filp->private_data & ~O_PACKET);
             break;
-
         case DHARMA_SET_BLOCKING :
             printk("Blocking mode now is active on dharma-device %d\n", minor);
             filp->f_flags &= ~O_NONBLOCK;
@@ -467,6 +494,62 @@ static long dharma_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
             printk("Non blocking mode now is active on dharma-device %d\n", minor);
             filp->f_flags |= O_NONBLOCK;
             break;
+        case DHARMA_GET_BUFFER_SIZE : // Fabrizio: Case "GET_BUFFER_SIZE"
+			printk("Returning current buffer size for dharma-device %d...\n", minor);
+			int size = atomic_read(&(minorSize[minor]));
+            int res1 = copy_to_user((int *) arg, &size , sizeof(int));
+            if(res1 != 0)
+				return -EINVAL; // if copy_from_user didn't return 0, there was a problem in the parameters.
+			printk("Buffer size for dharma-device %d read.\n", minor);
+			break;
+		case DHARMA_SET_BUFFER_SIZE : // Fabrizio: Case "SET_BUFFER_SIZE"
+			printk("Updating current buffer size for dharma-device %d...\n", minor);
+			int newsize;
+			int res2 = copy_from_user(&newsize, (int *) arg, sizeof(int));
+			if(res2 != 0)
+				return -EINVAL; // if copy_from_user didn't return 0, there was a problem in the parameters.
+			if(newsize % PACKET_SIZE != 0) // Fabrizio: Nuova size non multipla di packet size!
+				return -EINVAL;
+				
+			/* MODIFICA SARA */
+			/* secondo me serve per evitare che read concorrenti modificano i puntatori 
+			 * nel buffer */
+			spin_lock(&(buffer_lock[minor]));
+			
+			if(newsize < writePos[minor] - readPos[minor]){ // Fabrizio: Nuova size non sufficiente.
+                spin_unlock(&(buffer_lock[minor]));
+                return -EINVAL;
+            } 	
+			int oldsize= atomic_read(&minorSize[minor]);
+			atomic_set(&minorSize[minor], newsize);
+			printk("Buffer size for dharma-device %d updated.\n", minor);
+			
+			
+			/* alloco un nuovo buffer che sicuramente può contenere la roba non letta*/
+			char * new_buffer=kmalloc(newsize, GFP_KERNEL);
+			if(writePos[minor] > readPos[minor]){
+				if(readPos_mod[minor] <= writePos_mod[minor]){
+					/* _____rpos*******wpos______  le stelline sono i byte da copiare */
+					strncpy(new_buffer, minorArray[minor]+readPos_mod[minor], writePos[minor]-readPos[minor] );
+				}
+				else if(readPos_mod[minor] > writePos_mod[minor]){
+					/* ******wpos_______rpos******  le stelline sono i byte da copiare */
+					strncpy(new_buffer, minorArray[minor]+readPos_mod[minor], oldsize- readPos_mod[minor] );
+					strncpy(new_buffer +oldsize- readPos_mod[minor], minorArray[minor], writePos_mod[minor] );
+				}
+			}
+			/* aggiorno i puntatori*/
+			writePos[minor]=writePos[minor]-readPos[minor];
+			writePos_mod[minor] = writePos[minor] % newsize;
+			readPos[minor] = readPos_mod[minor] = 0;
+			
+			kfree(minorArray[minor]);
+			minorArray[minor]=new_buffer;
+			
+			wake_up_interruptible(&write_queue);
+			
+			spin_unlock(&(buffer_lock[minor]));
+			break;
         default :
             return -EINVAL; // invalid argument
     }
